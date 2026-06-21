@@ -116,8 +116,8 @@ var OPTIONS = {
 
 var PROCESSED_LABEL_NAME = 'batismos-processado';
 
-// Ajuste esta busca se seus emails usarem outro assunto ou remetente.
-var EMAIL_SEARCH_QUERY = 'newer_than:90d (batismo OR batismal OR baptism) -label:' + PROCESSED_LABEL_NAME;
+// Busca os avisos oficiais de batismo marcado enviados pelo sistema da Igreja.
+var EMAIL_SEARCH_QUERY = 'newer_than:90d from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado" -label:' + PROCESSED_LABEL_NAME;
 
 function onOpen() {
   SpreadsheetApp.getUi()

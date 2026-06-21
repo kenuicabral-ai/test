@@ -23,11 +23,14 @@ Este repositório contém um MVP em Google Apps Script para criar automaticament
 
 - Cria as abas com cabeçalhos e formatação.
 - Configura dropdowns para status, match, TouchDown, entrevista, bloqueio e resultado.
-- Lê emails recentes do Gmail com termos relacionados a batismo.
+- Lê emails recentes do Gmail enviados por `noreply-missionary-info@mail.churchofjesuschrist.org` com assunto `Batismo marcado`.
 - Extrai nome, área e data batismal quando o email segue padrão semelhante a:
 
 ```text
-Castelo 1 acabou de agendar o batismo de Paulo para o dia Jul 5, 2026.
+Subject: Batismo marcado na área São José do Norte
+
+São José do Norte acabou de agendar o batismo de Emily para o dia Jun 29, 2026.
+Entre em contato com a área São José do Norte para marcar a entrevista batismal.
 ```
 
 - Cria registros em **Datas Ativas**.
@@ -40,7 +43,7 @@ Castelo 1 acabou de agendar o batismo de Paulo para o dia Jul 5, 2026.
 Se os emails tiverem outro formato, ajuste no script:
 
 ```javascript
-var EMAIL_SEARCH_QUERY = 'newer_than:90d (batismo OR batismal OR baptism) -label:' + PROCESSED_LABEL_NAME;
+var EMAIL_SEARCH_QUERY = 'newer_than:90d from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado" -label:' + PROCESSED_LABEL_NAME;
 ```
 
 Também é possível adicionar apelidos de áreas na aba **Config**, coluna `Aliases da Área`.
