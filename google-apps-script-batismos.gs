@@ -17,6 +17,7 @@ var SHEETS = {
   DROPPED: 'Datas Caídas',
   CONFIG: 'Config',
   RESERVED: 'Reservados',
+  UNASSIGNED: 'Sem Distrito',
   HISTORY: '_Histórico'
 };
 
@@ -95,7 +96,9 @@ var CONFIG_HEADERS = [
   'Entrevista',
   'Bloqueio Principal',
   'Resultado da Data',
-  'Motivo da Queda'
+  'Motivo da Queda',
+  'Configuração',
+  'Valor'
 ];
 
 var DEFAULT_AREAS = [
@@ -151,6 +154,8 @@ var OPTIONS = {
 };
 
 var PROCESSED_LABEL_NAME = 'batismos-processado';
+var DEFAULT_VIEW_WINDOW_DAYS = 21;
+var VIEW_WINDOW_SETTING_NAME = 'Janela de visualização (dias)';
 
 // Busca os avisos oficiais de batismo marcado enviados pelo sistema da Igreja.
 var EMAIL_SEARCH_QUERY = 'newer_than:90d from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado" -label:' + PROCESSED_LABEL_NAME;
@@ -162,6 +167,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Ler emails agora', 'processarEmailsBatismo')
     .addItem('Atualizar Dashboard', 'atualizarDashboard')
+    .addItem('Atualizar abas por distrito', 'atualizarAbasLDs')
     .addItem('Enviar alerta aos LZs agora', 'enviarAlertasLZs')
     .addItem('Reaplicar validações', 'aplicarValidacoes')
     .addSeparator()
@@ -253,6 +259,7 @@ function configurarAbaConfig_(ss) {
   sheet.setColumnWidths(1, CONFIG_HEADERS.length, 180);
 
   if (hasExistingConfig) {
+    ensureConfigSettings_(sheet);
     return;
   }
 
@@ -279,10 +286,13 @@ function configurarAbaConfig_(ss) {
       OPTIONS.INTERVIEW[i] || '',
       OPTIONS.BLOCKS[i] || '',
       OPTIONS.RESULT[i] || '',
-      OPTIONS.DROP_REASONS[i] || ''
+      OPTIONS.DROP_REASONS[i] || '',
+      i === 0 ? VIEW_WINDOW_SETTING_NAME : '',
+      i === 0 ? DEFAULT_VIEW_WINDOW_DAYS : ''
     ]);
   }
   sheet.getRange(2, 1, values.length, CONFIG_HEADERS.length).setValues(values);
+  ensureConfigSettings_(sheet);
 }
 
 function configurarAbaHistorico_(ss) {
@@ -579,7 +589,7 @@ function atualizarDashboard() {
     .setFontStyle('italic');
   row += 2;
 
-  var activeRecords = getSheetRecords_(active, ACTIVE_HEADERS);
+  var activeRecords = getVisibleActiveRecords_(getSheetRecords_(active, ACTIVE_HEADERS));
   var droppedRecords = getSheetRecords_(dropped, DROPPED_HEADERS);
   var reservedRecords = getSheetRecords_(reserved, RESERVED_HEADERS);
   var districts = getDistricts_();
@@ -594,7 +604,7 @@ function atualizarDashboard() {
     row += 2;
 
     var districtRecords = activeRecords.filter(function(record) {
-      return record['Distrito'] === district &&
+      return isAssignedToDistrict_(record, district) &&
         record['Resultado da Data'] !== 'Batizado' &&
         record['Reserva'] !== 'Sim';
     });
@@ -602,9 +612,11 @@ function atualizarDashboard() {
     row = appendDistrictTables_(dashboard, row, district, districtRecords);
   });
 
+  row = appendUnassignedSection_(dashboard, row, activeRecords);
   row = appendLzActionSummary_(dashboard, row, activeRecords);
   row = appendReservedSummary_(dashboard, row, reservedRecords);
   row = appendDroppedSummary_(dashboard, row, droppedRecords);
+  atualizarAbasLDs_();
 
   dashboard.autoResizeColumns(1, 11);
 }
@@ -703,6 +715,88 @@ function appendDistrictTables_(sheet, startRow, district, records) {
   });
 
   return row + 1;
+}
+
+function appendUnassignedSection_(sheet, startRow, activeRecords) {
+  var records = activeRecords.filter(isUnassignedRecord_);
+  if (records.length === 0) {
+    return startRow;
+  }
+
+  var row = startRow;
+  sheet.getRange(row, 1, 1, 11).merge();
+  sheet.getRange(row, 1)
+    .setValue('⚪ Sem Distrito / Área não identificada')
+    .setFontSize(14)
+    .setFontWeight('bold')
+    .setBackground('#d9d2e9');
+  row += 2;
+
+  row = appendDistrictTables_(sheet, row, 'Sem Distrito', records);
+  return row;
+}
+
+function atualizarAbasLDs() {
+  ensureSystemExists_(SpreadsheetApp.getActiveSpreadsheet());
+  atualizarAbasLDs_();
+  notify_('Abas por distrito atualizadas.');
+}
+
+function atualizarAbasLDs_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var active = ss.getSheetByName(SHEETS.ACTIVE);
+  if (!active) {
+    return;
+  }
+
+  var activeRecords = getVisibleActiveRecords_(getSheetRecords_(active, ACTIVE_HEADERS)).filter(function(record) {
+    return record['Resultado da Data'] !== 'Batizado' && record['Reserva'] !== 'Sim';
+  });
+  var districts = getDistricts_();
+
+  districts.forEach(function(district) {
+    var sheet = getOrCreateSheet_(ss, sanitizeSheetName_(district));
+    var records = activeRecords.filter(function(record) {
+      return isAssignedToDistrict_(record, district);
+    });
+    renderLdDistrictSheet_(sheet, district, records);
+  });
+
+  renderLdDistrictSheet_(
+    getOrCreateSheet_(ss, sanitizeSheetName_(SHEETS.UNASSIGNED)),
+    'Sem Distrito / Área não identificada',
+    activeRecords.filter(isUnassignedRecord_)
+  );
+}
+
+function renderLdDistrictSheet_(sheet, title, records) {
+  sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).breakApart();
+  sheet.clear();
+  sheet.setFrozenRows(3);
+  sheet.setColumnWidths(1, 11, 120);
+  sheet.setColumnWidth(2, 170);
+  sheet.setColumnWidth(8, 240);
+  sheet.setColumnWidth(11, 280);
+
+  sheet.getRange(1, 1, 1, 11).merge();
+  sheet.getRange(1, 1)
+    .setValue(title + ' - acompanhamento do LD')
+    .setFontSize(15)
+    .setFontWeight('bold')
+    .setBackground('#1f4e79')
+    .setFontColor('#ffffff');
+
+  sheet.getRange(2, 1, 1, 11).merge();
+  sheet.getRange(2, 1)
+    .setValue('Mostrando registros dentro da janela de ' + getViewingWindowDays_() + ' dias. Edite a base em "Datas Ativas".')
+    .setFontStyle('italic');
+
+  if (records.length === 0) {
+    sheet.getRange(4, 1).setValue('Nenhuma pessoa para acompanhar nesta janela.');
+    return;
+  }
+
+  appendDistrictTables_(sheet, 4, title, records);
 }
 
 function appendLzActionSummary_(sheet, startRow, activeRecords) {
@@ -1146,6 +1240,77 @@ function getAreasForDistrict_(district) {
     .map(function(item) { return item.area; });
 }
 
+function getVisibleActiveRecords_(records) {
+  var windowDays = getViewingWindowDays_();
+  var now = new Date();
+  var cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - windowDays);
+
+  return records.filter(function(record) {
+    var baptismDate = asDate_(record['Data Batismal']);
+    var lastNextAction = asDate_(record['Último Próximo Passo']) || asDate_(record['Última Atualização']);
+
+    if (baptismDate && baptismDate >= cutoff) {
+      return true;
+    }
+    if (lastNextAction && lastNextAction >= cutoff) {
+      return true;
+    }
+    return false;
+  });
+}
+
+function isAssignedToDistrict_(record, district) {
+  return !isUnassignedRecord_(record) && record['Distrito'] === district;
+}
+
+function isUnassignedRecord_(record) {
+  var district = normalizeSpaces_(record['Distrito']);
+  var area = normalizeSpaces_(record['Área']);
+  if (!district || district === 'Configurar' || district === 'Não identificada') {
+    return true;
+  }
+  if (!area || area === 'Não identificada') {
+    return true;
+  }
+  return getDistricts_().indexOf(district) === -1;
+}
+
+function getViewingWindowDays_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var config = ss.getSheetByName(SHEETS.CONFIG);
+  if (!config || config.getLastRow() < 2) {
+    return DEFAULT_VIEW_WINDOW_DAYS;
+  }
+
+  var settingCol = col_(CONFIG_HEADERS, 'Configuração');
+  var valueCol = col_(CONFIG_HEADERS, 'Valor');
+  var values = config.getRange(2, 1, config.getLastRow() - 1, CONFIG_HEADERS.length).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (values[i][settingCol - 1] === VIEW_WINDOW_SETTING_NAME) {
+      var days = Number(values[i][valueCol - 1]);
+      return days > 0 ? days : DEFAULT_VIEW_WINDOW_DAYS;
+    }
+  }
+  return DEFAULT_VIEW_WINDOW_DAYS;
+}
+
+function ensureConfigSettings_(sheet) {
+  var settingCol = col_(CONFIG_HEADERS, 'Configuração');
+  var valueCol = col_(CONFIG_HEADERS, 'Valor');
+  var lastRow = Math.max(2, sheet.getLastRow());
+  var values = sheet.getRange(2, settingCol, Math.max(1, lastRow - 1), 1).getValues();
+  var found = values.some(function(row) {
+    return row[0] === VIEW_WINDOW_SETTING_NAME;
+  });
+
+  if (!found) {
+    var targetRow = sheet.getLastRow() + 1;
+    sheet.getRange(targetRow, settingCol).setValue(VIEW_WINDOW_SETTING_NAME);
+    sheet.getRange(targetRow, valueCol).setValue(DEFAULT_VIEW_WINDOW_DAYS);
+  }
+}
+
 function getLzEmailsByDistrict_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var config = ss.getSheetByName(SHEETS.CONFIG);
@@ -1344,7 +1509,7 @@ function limparRegistrosAntigosDaAba_(sheetName, headers, ageDateHeader, lastNex
     if (shouldKeepVisibleRecord_(record, ageDateHeader, lastNextActionHeader, new Date(), keepFutureDate)) {
       continue;
     }
-    registrarHistorico_(recordToActiveRow_(record), 'Reset', '', sheetName, 'Removido da tabela visível após 3 semanas sem data futura ou próximo passo recente');
+    registrarHistorico_(recordToActiveRow_(record), 'Reset', '', sheetName, 'Removido da tabela visível por estar fora da janela configurada sem data futura ou próximo passo recente');
     sheet.deleteRow(row);
   }
 }
@@ -1352,8 +1517,8 @@ function limparRegistrosAntigosDaAba_(sheetName, headers, ageDateHeader, lastNex
 function shouldKeepVisibleRecord_(record, ageDateHeader, lastNextActionHeader, now, keepFutureDate) {
   var ageDate = asDate_(record[ageDateHeader]);
   var lastNextAction = asDate_(record[lastNextActionHeader]);
-  var threeWeeksAgo = new Date(now);
-  threeWeeksAgo.setDate(threeWeeksAgo.getDate() - 21);
+  var windowStart = new Date(now);
+  windowStart.setDate(windowStart.getDate() - getViewingWindowDays_());
   var oneWeekAgo = new Date(now);
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
@@ -1364,7 +1529,7 @@ function shouldKeepVisibleRecord_(record, ageDateHeader, lastNextActionHeader, n
     return true;
   }
 
-  return !ageDate || ageDate >= threeWeeksAgo;
+  return !ageDate || ageDate >= windowStart;
 }
 
 function getFollowUpState_(record, now) {
@@ -1742,6 +1907,11 @@ function notify_(message) {
 
 function getOrCreateSheet_(ss, name) {
   return ss.getSheetByName(name) || ss.insertSheet(name);
+}
+
+function sanitizeSheetName_(name) {
+  var clean = normalizeSpaces_(name).replace(/[\[\]\:\*\?\/\\]/g, '-');
+  return clean.substring(0, 99) || 'Aba';
 }
 
 function col_(headers, header) {

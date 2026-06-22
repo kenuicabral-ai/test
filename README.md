@@ -7,6 +7,8 @@ Este repositório contém um MVP em Google Apps Script para criar automaticament
 - Datas Caídas
 - Config
 - Reservados
+- Sem Distrito
+- Abas separadas por distrito, como `Distrito 1` e `Distrito 2`
 - Histórico oculto para cálculo de progresso
 
 ## Como instalar
@@ -54,6 +56,25 @@ Entre em contato com a área São José do Norte para marcar a entrevista batism
 - Move para **Reservados** quando alguém passa 3 dias sem novo próximo passo.
 - Só tira alguém de **Reservados** quando a coluna `Reserva` é alterada manualmente para `Não`.
 - Atualiza o **Dashboard LZ** com uma tabela por distrito, separada por área.
+- Gera abas separadas por distrito para que cada LD olhe apenas as pessoas do próprio distrito.
+- Gera a aba **Sem Distrito** para datas sem área/distrito reconhecido.
+
+## Abas dos LDs
+
+O sistema cria automaticamente uma aba para cada distrito cadastrado na aba **Config**:
+
+- `Distrito 1`
+- `Distrito 2`
+
+Essas abas mostram somente as pessoas daquele distrito, separadas por área. Elas são pensadas para consulta rápida no celular.
+
+A aba **Sem Distrito** mostra registros sem área/distrito reconhecido. Normalmente isso acontece quando:
+
+- a área veio diferente no email;
+- a área ainda não está cadastrada na aba **Config**;
+- a data é antiga e não combina mais com a estrutura atual.
+
+Para corrigir, ajuste a área/distrito na aba **Datas Ativas** ou adicione um alias da área na aba **Config**.
 
 ## Lógica das semanas
 
@@ -77,6 +98,20 @@ O TouchDown só é foco da primeira semana; depois da primeira semana ele não d
 ## Alertas para LZs
 
 Na aba **Config**, preencha a coluna `Email LZ` ao lado do distrito/área. O script envia um alerta diário com as pessoas sem novo próximo passo há mais de 24h.
+
+## Janela de visualização
+
+Na aba **Config**, existe a configuração:
+
+```text
+Janela de visualização (dias)
+```
+
+O valor padrão é `21`.
+
+Isso controla quantos dias de datas aparecem no Dashboard e nas abas dos LDs. Se quiser uma visão mais limpa, deixe `21`. Se quiser ver mais histórico, troque para `35`, `60` etc.
+
+Datas fora dessa janela deixam de aparecer nas telas principais, a menos que tenham uma data futura ou um próximo passo atualizado recentemente.
 
 ## Ajuste importante
 
