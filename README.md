@@ -55,7 +55,7 @@ Entre em contato com a área São José do Norte para marcar a entrevista batism
 - Move para **Datas Caídas** quando `Resultado da Data` vira `Data Caiu`.
 - Move para **Reservados** quando alguém passa 3 dias sem novo próximo passo.
 - Só tira alguém de **Reservados** quando a coluna `Reserva` é alterada manualmente para `Não`.
-- Atualiza o **Dashboard LZ** com uma tabela por distrito, separada por área.
+- Atualiza o **Dashboard LZ** com uma tabela por distrito, separada por `Semana 1`, `Semana 2`, `Semana 3` e depois por área.
 - Gera abas separadas por distrito para que cada LD olhe apenas as pessoas do próprio distrito.
 - Gera a aba **Sem Distrito** para datas sem área/distrito reconhecido.
 
@@ -66,7 +66,14 @@ O sistema cria automaticamente uma aba para cada distrito cadastrado na aba **Co
 - `Distrito 1`
 - `Distrito 2`
 
-Essas abas mostram somente as pessoas daquele distrito, separadas por área. Elas são pensadas para consulta rápida no celular.
+Essas abas mostram somente as pessoas daquele distrito. Dentro de cada distrito, a organização é:
+
+1. `Semana 1`
+2. `Semana 2`
+3. `Semana 3`
+4. Áreas dentro de cada semana
+
+Elas são pensadas para consulta rápida no celular.
 
 A aba **Sem Distrito** mostra registros sem área/distrito reconhecido. Normalmente isso acontece quando:
 

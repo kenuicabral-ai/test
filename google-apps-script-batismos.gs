@@ -650,71 +650,92 @@ function appendDashboardSection_(sheet, startRow, title, headers, rows) {
 
 function appendDistrictTables_(sheet, startRow, district, records) {
   var row = startRow;
-  var areas = getAreasForDistrict_(district);
-  var recordsByArea = {};
-  records.forEach(function(record) {
-    var area = record['Área'] || 'Área não identificada';
-    if (!recordsByArea[area]) {
-      recordsByArea[area] = [];
-    }
-    recordsByArea[area].push(record);
-  });
+  var weekOrder = ['Semana 1', 'Semana 2', 'Semana 3'];
+  var hasAnyRecord = false;
 
-  Object.keys(recordsByArea).forEach(function(area) {
-    if (areas.indexOf(area) === -1) {
-      areas.push(area);
-    }
-  });
+  weekOrder.forEach(function(week) {
+    var weekRecords = records.filter(function(record) {
+      return getFollowUpState_(record, new Date()).week === week;
+    });
 
-  areas.forEach(function(area) {
-    var areaRecords = recordsByArea[area] || [];
-    if (areaRecords.length === 0) {
+    if (weekRecords.length === 0) {
       return;
     }
 
-    areaRecords.sort(sortRecordsForFollowUp_);
+    hasAnyRecord = true;
     sheet.getRange(row, 1, 1, 11).merge();
     sheet.getRange(row, 1)
-      .setValue(area)
+      .setValue(week)
       .setFontWeight('bold')
-      .setBackground('#d9eaf7');
+      .setBackground('#cfe2f3');
     row++;
 
-    var headers = ['Área', 'Nome', 'Semana', 'TD', 'Match', 'Entrev.', 'Status', 'Próxima Ação', 'Data Batismal', 'Último Próx. Passo', 'Situação'];
-    sheet.getRange(row, 1, 1, headers.length)
-      .setValues([headers])
-      .setFontWeight('bold')
-      .setBackground('#eeeeee');
-    row++;
-
-    var values = areaRecords.map(function(record) {
-      var state = getFollowUpState_(record, new Date());
-      return [
-        record['Área'],
-        record['Nome'],
-        state.week,
-        record['TouchDown'],
-        record['Match'],
-        record['Entrevista'],
-        record['Status'],
-        record['Próxima Ação'],
-        record['Data Batismal'],
-        record['Último Próximo Passo'],
-        state.message
-      ];
+    var areas = getAreasForDistrict_(district);
+    var recordsByArea = {};
+    weekRecords.forEach(function(record) {
+      var area = record['Área'] || 'Área não identificada';
+      if (!recordsByArea[area]) {
+        recordsByArea[area] = [];
+      }
+      recordsByArea[area].push(record);
     });
 
-    sheet.getRange(row, 1, values.length, headers.length).setValues(values);
-    values.forEach(function(_, index) {
-      var state = getFollowUpState_(areaRecords[index], new Date());
-      sheet.getRange(row + index, 1, 1, headers.length).setBackground(state.color);
+    Object.keys(recordsByArea).forEach(function(area) {
+      if (areas.indexOf(area) === -1) {
+        areas.push(area);
+      }
     });
-    sheet.getRange(row, 9, values.length, 1).setNumberFormat('dd/MM/yyyy');
-    sheet.getRange(row, 10, values.length, 1).setNumberFormat('dd/MM/yyyy HH:mm');
-    row += values.length + 2;
+
+    areas.forEach(function(area) {
+      var areaRecords = recordsByArea[area] || [];
+      if (areaRecords.length === 0) {
+        return;
+      }
+
+      areaRecords.sort(sortRecordsForFollowUp_);
+      sheet.getRange(row, 1, 1, 11).merge();
+      sheet.getRange(row, 1)
+        .setValue(area)
+        .setFontWeight('bold')
+        .setBackground('#d9eaf7');
+      row++;
+
+      var headers = ['Área', 'Nome', 'Semana', 'TD', 'Match', 'Entrev.', 'Status', 'Próxima Ação', 'Data Batismal', 'Último Próx. Passo', 'Situação'];
+      sheet.getRange(row, 1, 1, headers.length)
+        .setValues([headers])
+        .setFontWeight('bold')
+        .setBackground('#eeeeee');
+      row++;
+
+      var values = areaRecords.map(function(record) {
+        var state = getFollowUpState_(record, new Date());
+        return [
+          record['Área'],
+          record['Nome'],
+          state.week,
+          record['TouchDown'],
+          record['Match'],
+          record['Entrevista'],
+          record['Status'],
+          record['Próxima Ação'],
+          record['Data Batismal'],
+          record['Último Próximo Passo'],
+          state.message
+        ];
+      });
+
+      sheet.getRange(row, 1, values.length, headers.length).setValues(values);
+      values.forEach(function(_, index) {
+        var state = getFollowUpState_(areaRecords[index], new Date());
+        sheet.getRange(row + index, 1, 1, headers.length).setBackground(state.color);
+      });
+      sheet.getRange(row, 9, values.length, 1).setNumberFormat('dd/MM/yyyy');
+      sheet.getRange(row, 10, values.length, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+      row += values.length + 2;
+    });
   });
 
-  return row + 1;
+  return hasAnyRecord ? row + 1 : row;
 }
 
 function appendUnassignedSection_(sheet, startRow, activeRecords) {
