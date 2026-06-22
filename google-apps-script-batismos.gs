@@ -161,17 +161,33 @@ var VIEW_WINDOW_SETTING_NAME = 'Janela de visualização (dias)';
 
 // Busca os avisos oficiais de batismo marcado enviados pelo sistema da Igreja.
 var EMAIL_SEARCH_QUERY = 'newer_than:90d from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado" -label:' + PROCESSED_LABEL_NAME;
+var EMAIL_BASE_SEARCH_QUERY = 'newer_than:90d from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado"';
 
 function onOpen() {
-  SpreadsheetApp.getUi()
+  var ui = SpreadsheetApp.getUi();
+  ui
     .createMenu('Batismos')
     .addItem('Configurar sistema completo', 'setupSistemaBatismos')
     .addSeparator()
     .addItem('Ler emails agora', 'processarEmailsBatismo')
+    .addItem('Reprocessar emails dos últimos 90 dias', 'reprocessarEmailsBatismo')
+    .addItem('Resetar marcador de emails processados', 'resetarEmailsProcessados')
+    .addItem('Diagnosticar emails de batismo', 'diagnosticarEmailsBatismo')
     .addItem('Atualizar Dashboard', 'atualizarDashboard')
     .addItem('Atualizar abas por distrito', 'atualizarAbasLDs')
     .addItem('Enviar alerta aos LZs agora', 'enviarAlertasLZs')
     .addItem('Reaplicar validações', 'aplicarValidacoes')
+    .addSeparator()
+    .addSubMenu(ui.createMenu('Configurações')
+      .addItem('Criar distrito', 'criarDistrito')
+      .addItem('Renomear distrito', 'renomearDistrito')
+      .addItem('Excluir distrito', 'excluirDistrito')
+      .addSeparator()
+      .addItem('Adicionar área', 'adicionarArea')
+      .addItem('Editar área', 'editarArea')
+      .addItem('Excluir área', 'excluirArea')
+      .addSeparator()
+      .addItem('Definir janela de visualização', 'definirJanelaVisualizacao'))
     .addSeparator()
     .addItem('Instalar gatilhos automáticos', 'instalarGatilhos')
     .addToUi();
@@ -374,6 +390,67 @@ function setValidationFromList_(targetSheet, targetCol, rowCount, values) {
 }
 
 function processarEmailsBatismo() {
+  processarEmailsBatismoComBusca_(EMAIL_SEARCH_QUERY, true);
+}
+
+function reprocessarEmailsBatismo() {
+  var resetCount = resetarEmailsProcessados_(false);
+  processarEmailsBatismoComBusca_(EMAIL_SEARCH_QUERY, true);
+  Logger.log('Marcadores removidos antes do reprocessamento: ' + resetCount);
+}
+
+function resetarEmailsProcessados() {
+  resetarEmailsProcessados_(true);
+}
+
+function resetarEmailsProcessados_(showAlert) {
+  var label = GmailApp.getUserLabelByName(PROCESSED_LABEL_NAME);
+  if (!label) {
+    if (showAlert) {
+      notify_('Nenhum marcador "' + PROCESSED_LABEL_NAME + '" encontrado. Nada para resetar.');
+    }
+    return 0;
+  }
+
+  var total = 0;
+  var threads;
+  do {
+    threads = label.getThreads(0, 100);
+    if (threads.length > 0) {
+      label.removeFromThreads(threads);
+      total += threads.length;
+    }
+  } while (threads.length === 100);
+
+  if (showAlert) {
+    notify_(total + ' conversa(s) tiveram o marcador "' + PROCESSED_LABEL_NAME + '" removido. Agora rode "Ler emails agora".');
+  }
+  return total;
+}
+
+function diagnosticarEmailsBatismo() {
+  var allThreads = GmailApp.search(EMAIL_BASE_SEARCH_QUERY, 0, 10);
+  var pendingThreads = GmailApp.search(EMAIL_SEARCH_QUERY, 0, 10);
+  var label = GmailApp.getUserLabelByName(PROCESSED_LABEL_NAME);
+  var processedCount = label ? label.getThreads(0, 500).length : 0;
+  var message = [
+    'Diagnóstico de emails:',
+    '',
+    'Busca usada:',
+    EMAIL_BASE_SEARCH_QUERY,
+    '',
+    'Encontrados na busca geral (amostra até 10): ' + allThreads.length,
+    'Pendentes sem marcador processado (amostra até 10): ' + pendingThreads.length,
+    'Conversas com marcador "' + PROCESSED_LABEL_NAME + '" (até 500): ' + processedCount,
+    '',
+    pendingThreads.length === 0 && processedCount > 0
+      ? 'Provável causa: os emails já estão marcados como processados. Use "Resetar marcador de emails processados" ou "Reprocessar emails dos últimos 90 dias".'
+      : 'Se não aparecerem emails, confira se o remetente/assunto batem com a busca acima.'
+  ].join('\n');
+  notify_(message);
+}
+
+function processarEmailsBatismoComBusca_(searchQuery, showAlert) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   ensureSystemExists_(ss);
 
@@ -383,7 +460,7 @@ function processarEmailsBatismo() {
   var processedIds = getExistingEmailIdsFromSheets_(active, dropped, reserved);
   var label = getOrCreateGmailLabel_(PROCESSED_LABEL_NAME);
   var areaMap = getAreaMap_();
-  var threads = GmailApp.search(EMAIL_SEARCH_QUERY, 0, 50);
+  var threads = GmailApp.search(searchQuery, 0, 50);
   var createdCount = 0;
 
   threads.forEach(function(thread) {
@@ -438,7 +515,9 @@ function processarEmailsBatismo() {
   limparRegistrosAntigos_();
   atualizarDashboard();
 
-  notify_(createdCount + ' registro(s) criado(s) a partir do Gmail.');
+  if (showAlert) {
+    notify_(createdCount + ' registro(s) criado(s) a partir do Gmail.');
+  }
 }
 
 function onEdit(e) {
@@ -1232,16 +1311,381 @@ function getAreaMap_() {
 }
 
 function getDistricts_() {
-  var areaMap = getAreaMap_();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var config = ss.getSheetByName(SHEETS.CONFIG);
   var seen = {};
   var districts = [];
-  areaMap.forEach(function(item) {
-    if (!seen[item.district]) {
-      seen[item.district] = true;
-      districts.push(item.district);
+
+  if (config && config.getLastRow() >= 2) {
+    var districtCol = col_(CONFIG_HEADERS, 'Distrito');
+    var values = config.getRange(2, districtCol, config.getLastRow() - 1, 1).getValues();
+    values.forEach(function(row) {
+      var district = normalizeSpaces_(row[0]);
+      if (district && !seen[district]) {
+        seen[district] = true;
+        districts.push(district);
+      }
+    });
+  }
+
+  if (districts.length === 0) {
+    getAreaMap_().forEach(function(item) {
+      if (!seen[item.district]) {
+        seen[item.district] = true;
+        districts.push(item.district);
+      }
+    });
+  }
+
+  return districts.length ? districts : ['Distrito 1', 'Distrito 2'];
+}
+
+function criarDistrito() {
+  var ui = SpreadsheetApp.getUi();
+  var district = promptText_(ui, 'Criar distrito', 'Nome do novo distrito:');
+  if (!district) {
+    return;
+  }
+  var email = promptText_(ui, 'Criar distrito', 'Email do LZ para este distrito (opcional):', true) || '';
+  var config = getConfigSheet_();
+  config.appendRow(configRow_('', district, '', email));
+  atualizarDepoisDeConfig_('Distrito criado: ' + district);
+}
+
+function renomearDistrito() {
+  var ui = SpreadsheetApp.getUi();
+  var oldDistrict = promptText_(ui, 'Renomear distrito', 'Nome atual do distrito:');
+  if (!oldDistrict) {
+    return;
+  }
+  var newDistrict = promptText_(ui, 'Renomear distrito', 'Novo nome do distrito:');
+  if (!newDistrict) {
+    return;
+  }
+
+  var changedConfig = updateConfigDistrict_(oldDistrict, newDistrict);
+  var changedRecords = updateValueInSheets_(
+    [SHEETS.ACTIVE, SHEETS.RESERVED, SHEETS.DROPPED],
+    ['Distrito'],
+    oldDistrict,
+    newDistrict
+  );
+  deleteGeneratedSheet_(oldDistrict);
+  atualizarDepoisDeConfig_('Distrito renomeado. Config: ' + changedConfig + ' linha(s). Registros: ' + changedRecords + ' linha(s).');
+}
+
+function excluirDistrito() {
+  var ui = SpreadsheetApp.getUi();
+  var district = promptText_(ui, 'Excluir distrito', 'Nome do distrito que deseja excluir:');
+  if (!district) {
+    return;
+  }
+  var response = ui.alert(
+    'Excluir distrito',
+    'Isso remove o distrito da Config e move registros desse distrito para "Configurar", sem apagar pessoas. Continuar?',
+    ui.ButtonSet.YES_NO
+  );
+  if (response !== ui.Button.YES) {
+    return;
+  }
+
+  var removed = deleteConfigRows_(function(record) {
+    return normalizeSpaces_(record['Distrito']) === district;
+  });
+  var changedRecords = updateValueInSheets_(
+    [SHEETS.ACTIVE, SHEETS.RESERVED, SHEETS.DROPPED],
+    ['Distrito'],
+    district,
+    'Configurar'
+  );
+  deleteGeneratedSheet_(district);
+  atualizarDepoisDeConfig_('Distrito excluído. Config: ' + removed + ' linha(s). Registros movidos para Configurar: ' + changedRecords + '.');
+}
+
+function adicionarArea() {
+  var ui = SpreadsheetApp.getUi();
+  var area = promptText_(ui, 'Adicionar área', 'Nome da área:');
+  if (!area) {
+    return;
+  }
+  var district = promptText_(ui, 'Adicionar área', 'Distrito desta área:');
+  if (!district) {
+    return;
+  }
+  var aliases = promptText_(ui, 'Adicionar área', 'Aliases da área separados por vírgula (opcional):', true) || '';
+  var email = getEmailForDistrict_(district);
+  getConfigSheet_().appendRow(configRow_(area, district, aliases, email));
+  atualizarDepoisDeConfig_('Área adicionada: ' + area + ' em ' + district);
+}
+
+function editarArea() {
+  var ui = SpreadsheetApp.getUi();
+  var oldArea = promptText_(ui, 'Editar área', 'Nome atual da área:');
+  if (!oldArea) {
+    return;
+  }
+  var existing = getAreaConfigRecord_(oldArea);
+  var newArea = promptText_(ui, 'Editar área', 'Novo nome da área:', true) || oldArea;
+  var newDistrict = promptText_(ui, 'Editar área', 'Distrito da área:', true) || (existing ? existing.district : '');
+  if (!newDistrict) {
+    notify_('Edição cancelada: distrito vazio.');
+    return;
+  }
+  var newAliases = promptText_(ui, 'Editar área', 'Aliases separados por vírgula:', true);
+  if (newAliases === null && existing) {
+    newAliases = existing.aliases;
+  }
+
+  var changedConfig = updateAreaConfig_(oldArea, newArea, newDistrict, newAliases || '');
+  var changedAreaRecords = updateValueInSheets_(
+    [SHEETS.ACTIVE, SHEETS.RESERVED, SHEETS.DROPPED],
+    ['Área'],
+    oldArea,
+    newArea
+  );
+  var changedDistrictRecords = updateDistrictForArea_(newArea, newDistrict);
+  atualizarDepoisDeConfig_('Área editada. Config: ' + changedConfig + '. Área em registros: ' + changedAreaRecords + '. Distrito em registros: ' + changedDistrictRecords + '.');
+}
+
+function excluirArea() {
+  var ui = SpreadsheetApp.getUi();
+  var area = promptText_(ui, 'Excluir área', 'Nome da área que deseja excluir:');
+  if (!area) {
+    return;
+  }
+  var response = ui.alert(
+    'Excluir área',
+    'Isso remove a área da Config e move registros dessa área para "Não identificada / Configurar", sem apagar pessoas. Continuar?',
+    ui.ButtonSet.YES_NO
+  );
+  if (response !== ui.Button.YES) {
+    return;
+  }
+
+  var removed = deleteConfigRows_(function(record) {
+    return normalizeSpaces_(record['Área']) === area;
+  });
+  var changedArea = updateValueInSheets_(
+    [SHEETS.ACTIVE, SHEETS.RESERVED, SHEETS.DROPPED],
+    ['Área'],
+    area,
+    'Não identificada'
+  );
+  var changedDistrict = updateDistrictForArea_('Não identificada', 'Configurar');
+  atualizarDepoisDeConfig_('Área excluída. Config: ' + removed + '. Registros atualizados: ' + (changedArea + changedDistrict) + '.');
+}
+
+function definirJanelaVisualizacao() {
+  var ui = SpreadsheetApp.getUi();
+  var daysText = promptText_(ui, 'Janela de visualização', 'Quantos dias deseja mostrar nas telas principais?', true);
+  if (!daysText) {
+    return;
+  }
+  var days = Number(daysText);
+  if (!days || days <= 0) {
+    notify_('Informe um número maior que zero.');
+    return;
+  }
+  setConfigSetting_(VIEW_WINDOW_SETTING_NAME, days);
+  atualizarDepoisDeConfig_('Janela de visualização definida para ' + days + ' dias.');
+}
+
+function atualizarDepoisDeConfig_(message) {
+  aplicarValidacoes();
+  atualizarDashboard();
+  notify_(message);
+}
+
+function getConfigSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var config = ss.getSheetByName(SHEETS.CONFIG);
+  if (!config) {
+    configurarAbaConfig_(ss);
+    config = ss.getSheetByName(SHEETS.CONFIG);
+  }
+  ensureConfigSettings_(config);
+  return config;
+}
+
+function configRow_(area, district, aliases, email) {
+  return CONFIG_HEADERS.map(function(header) {
+    if (header === 'Área') return area || '';
+    if (header === 'Distrito') return district || '';
+    if (header === 'Aliases da Área') return aliases || '';
+    if (header === 'Email LZ') return email || '';
+    return '';
+  });
+}
+
+function promptText_(ui, title, message, allowEmpty) {
+  var response = ui.prompt(title, message, ui.ButtonSet.OK_CANCEL);
+  if (response.getSelectedButton() !== ui.Button.OK) {
+    return null;
+  }
+  var value = normalizeSpaces_(response.getResponseText());
+  if (!allowEmpty && !value) {
+    notify_('Valor vazio. Ação cancelada.');
+    return null;
+  }
+  return value;
+}
+
+function getAreaConfigRecord_(area) {
+  var config = getConfigSheet_();
+  if (config.getLastRow() < 2) {
+    return null;
+  }
+  var rows = config.getRange(2, 1, config.getLastRow() - 1, CONFIG_HEADERS.length).getValues();
+  for (var i = 0; i < rows.length; i++) {
+    var record = rowToRecord_(rows[i], CONFIG_HEADERS);
+    if (normalizeSpaces_(record['Área']) === area) {
+      return {
+        row: i + 2,
+        area: record['Área'],
+        district: record['Distrito'],
+        aliases: record['Aliases da Área'],
+        email: record['Email LZ']
+      };
+    }
+  }
+  return null;
+}
+
+function getEmailForDistrict_(district) {
+  var emails = getLzEmailsByDistrict_();
+  return emails[district] || '';
+}
+
+function updateConfigDistrict_(oldDistrict, newDistrict) {
+  var config = getConfigSheet_();
+  if (config.getLastRow() < 2) {
+    return 0;
+  }
+  var districtCol = col_(CONFIG_HEADERS, 'Distrito');
+  var values = config.getRange(2, districtCol, config.getLastRow() - 1, 1).getValues();
+  var changed = 0;
+  values.forEach(function(row, index) {
+    if (normalizeSpaces_(row[0]) === oldDistrict) {
+      values[index][0] = newDistrict;
+      changed++;
     }
   });
-  return districts.length ? districts : ['Distrito 1', 'Distrito 2'];
+  if (changed) {
+    config.getRange(2, districtCol, values.length, 1).setValues(values);
+  }
+  return changed;
+}
+
+function updateAreaConfig_(oldArea, newArea, newDistrict, aliases) {
+  var config = getConfigSheet_();
+  if (config.getLastRow() < 2) {
+    return 0;
+  }
+  var rows = config.getRange(2, 1, config.getLastRow() - 1, CONFIG_HEADERS.length).getValues();
+  var changed = 0;
+  rows.forEach(function(row, index) {
+    var record = rowToRecord_(row, CONFIG_HEADERS);
+    if (normalizeSpaces_(record['Área']) === oldArea) {
+      rows[index][col_(CONFIG_HEADERS, 'Área') - 1] = newArea;
+      rows[index][col_(CONFIG_HEADERS, 'Distrito') - 1] = newDistrict;
+      rows[index][col_(CONFIG_HEADERS, 'Aliases da Área') - 1] = aliases;
+      changed++;
+    }
+  });
+  if (changed) {
+    config.getRange(2, 1, rows.length, CONFIG_HEADERS.length).setValues(rows);
+  }
+  return changed;
+}
+
+function deleteConfigRows_(predicate) {
+  var config = getConfigSheet_();
+  var removed = 0;
+  for (var row = config.getLastRow(); row >= 2; row--) {
+    var values = config.getRange(row, 1, 1, CONFIG_HEADERS.length).getValues()[0];
+    var record = rowToRecord_(values, CONFIG_HEADERS);
+    if (predicate(record)) {
+      config.deleteRow(row);
+      removed++;
+    }
+  }
+  ensureConfigSettings_(config);
+  return removed;
+}
+
+function updateValueInSheets_(sheetNames, headersToTry, oldValue, newValue) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var changed = 0;
+  sheetNames.forEach(function(sheetName) {
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet || sheet.getLastRow() < 2) {
+      return;
+    }
+    var headers = getHeadersForSheetName_(sheetName);
+    headersToTry.forEach(function(header) {
+      if (headers.indexOf(header) === -1) {
+        return;
+      }
+      var targetCol = col_(headers, header);
+      var values = sheet.getRange(2, targetCol, sheet.getLastRow() - 1, 1).getValues();
+      var localChanged = false;
+      values.forEach(function(row, index) {
+        if (normalizeSpaces_(row[0]) === oldValue) {
+          values[index][0] = newValue;
+          changed++;
+          localChanged = true;
+        }
+      });
+      if (localChanged) {
+        sheet.getRange(2, targetCol, values.length, 1).setValues(values);
+      }
+    });
+  });
+  return changed;
+}
+
+function updateDistrictForArea_(area, district) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var changed = 0;
+  [SHEETS.ACTIVE, SHEETS.RESERVED, SHEETS.DROPPED].forEach(function(sheetName) {
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet || sheet.getLastRow() < 2) {
+      return;
+    }
+    var headers = getHeadersForSheetName_(sheetName);
+    if (headers.indexOf('Área') === -1 || headers.indexOf('Distrito') === -1) {
+      return;
+    }
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+    var localChanged = false;
+    rows.forEach(function(row, index) {
+      if (normalizeSpaces_(row[col_(headers, 'Área') - 1]) === area) {
+        rows[index][col_(headers, 'Distrito') - 1] = district;
+        changed++;
+        localChanged = true;
+      }
+    });
+    if (localChanged) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+  });
+  return changed;
+}
+
+function deleteGeneratedSheet_(name) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sanitizeSheetName_(name));
+  if (sheet && [SHEETS.ACTIVE, SHEETS.DASHBOARD, SHEETS.CONFIG, SHEETS.DROPPED, SHEETS.RESERVED, SHEETS.HISTORY].indexOf(sheet.getName()) === -1) {
+    ss.deleteSheet(sheet);
+  }
+}
+
+function getHeadersForSheetName_(sheetName) {
+  if (sheetName === SHEETS.ACTIVE) return ACTIVE_HEADERS;
+  if (sheetName === SHEETS.DROPPED) return DROPPED_HEADERS;
+  if (sheetName === SHEETS.RESERVED) return RESERVED_HEADERS;
+  if (sheetName === SHEETS.CONFIG) return CONFIG_HEADERS;
+  return ACTIVE_HEADERS;
 }
 
 function getAreasForDistrict_(district) {
@@ -1320,6 +1764,25 @@ function ensureConfigSettings_(sheet) {
     sheet.getRange(targetRow, settingCol).setValue(VIEW_WINDOW_SETTING_NAME);
     sheet.getRange(targetRow, valueCol).setValue(DEFAULT_VIEW_WINDOW_DAYS);
   }
+}
+
+function setConfigSetting_(settingName, value) {
+  var config = getConfigSheet_();
+  var settingCol = col_(CONFIG_HEADERS, 'Configuração');
+  var valueCol = col_(CONFIG_HEADERS, 'Valor');
+  var lastRow = Math.max(2, config.getLastRow());
+  var values = config.getRange(2, settingCol, Math.max(1, lastRow - 1), 1).getValues();
+
+  for (var i = 0; i < values.length; i++) {
+    if (values[i][0] === settingName) {
+      config.getRange(i + 2, valueCol).setValue(value);
+      return;
+    }
+  }
+
+  var targetRow = config.getLastRow() + 1;
+  config.getRange(targetRow, settingCol).setValue(settingName);
+  config.getRange(targetRow, valueCol).setValue(value);
 }
 
 function getLzEmailsByDistrict_() {

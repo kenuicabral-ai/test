@@ -88,6 +88,33 @@ A aba **Sem Distrito** mostra registros sem área/distrito reconhecido. Normalme
 
 Para corrigir, ajuste a área/distrito na aba **Datas Ativas** ou adicione um alias da área na aba **Config**.
 
+## Gerenciar distritos e áreas
+
+Use o menu:
+
+```text
+Batismos > Configurações
+```
+
+Opções disponíveis:
+
+- Criar distrito
+- Renomear distrito
+- Excluir distrito
+- Adicionar área
+- Editar área
+- Excluir área
+- Definir janela de visualização
+
+Excluir distrito ou área não apaga pessoas da planilha. O sistema apenas remove a configuração e move os registros afetados para `Configurar` / `Não identificada`, para que apareçam em **Sem Distrito** até serem corrigidos.
+
+Também é possível editar manualmente a aba **Config**:
+
+- `Área`: nome oficial da área.
+- `Distrito`: distrito ao qual a área pertence.
+- `Aliases da Área`: variações de nome separadas por vírgula.
+- `Email LZ`: email que recebe alerta de acompanhamento atrasado.
+
 ## Lógica das semanas
 
 - **Semana 1**: mais de uma semana antes da semana do batismo.
@@ -110,6 +137,35 @@ O TouchDown só é foco da primeira semana; depois da primeira semana ele não d
 ## Alertas para LZs
 
 Na aba **Config**, preencha a coluna `Email LZ` ao lado do distrito/área. O script envia um alerta diário com as pessoas sem novo próximo passo há mais de 24h.
+
+## Reprocessar emails depois de resetar a planilha
+
+Quando um email é processado, o script coloca nele o marcador:
+
+```text
+batismos-processado
+```
+
+Se você apagar as linhas da planilha para resetar, os emails antigos continuam com esse marcador no Gmail. Por isso eles não aparecem de novo.
+
+Para puxar os emails novamente, use:
+
+```text
+Batismos > Reprocessar emails dos últimos 90 dias
+```
+
+Ou, se quiser fazer em duas etapas:
+
+```text
+Batismos > Resetar marcador de emails processados
+Batismos > Ler emails agora
+```
+
+Para entender se existem emails encontrados ou já marcados, use:
+
+```text
+Batismos > Diagnosticar emails de batismo
+```
 
 ## Janela de visualização
 
