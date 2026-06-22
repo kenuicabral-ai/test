@@ -28,6 +28,7 @@ var ACTIVE_HEADERS = [
   'Match',
   'Entrevista',
   'Status',
+  'Observação',
   'Próxima Ação',
   'Plano Igreja',
   'Data Batismal',
@@ -62,6 +63,7 @@ var RESERVED_HEADERS = [
   'Match',
   'Entrevista',
   'Status',
+  'Observação',
   'Próxima Ação',
   'Plano Igreja',
   'Data Batismal',
@@ -203,6 +205,7 @@ function configurarAbaAtivas_(ss) {
   sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Nome'), 160);
   sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Semana'), 80);
   sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Status'), 155);
+  sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Observação'), 240);
   sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Próxima Ação'), 240);
   sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Plano Igreja'), 220);
   sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Último Próximo Passo'), 145);
@@ -218,6 +221,7 @@ function configurarAbaCaidas_(ss) {
   migrarCabecalhos_(sheet, DROPPED_HEADERS, defaultDroppedValue_);
   setupHeader_(sheet, DROPPED_HEADERS, '#7f1d1d', '#ffffff');
   sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(1);
   sheet.setColumnWidths(1, DROPPED_HEADERS.length, 155);
   sheet.setColumnWidth(col_(DROPPED_HEADERS, 'Observação'), 280);
   sheet.setColumnWidth(col_(DROPPED_HEADERS, 'Email ID'), 180);
@@ -236,6 +240,7 @@ function configurarAbaReservados_(ss) {
   sheet.setFrozenColumns(1);
   sheet.setColumnWidths(1, RESERVED_HEADERS.length, 110);
   sheet.setColumnWidth(col_(RESERVED_HEADERS, 'Nome'), 160);
+  sheet.setColumnWidth(col_(RESERVED_HEADERS, 'Observação'), 240);
   sheet.setColumnWidth(col_(RESERVED_HEADERS, 'Próxima Ação'), 240);
   sheet.setColumnWidth(col_(RESERVED_HEADERS, 'Plano Igreja'), 220);
   sheet.setColumnWidth(col_(RESERVED_HEADERS, 'Email ID'), 180);
@@ -403,6 +408,7 @@ function processarEmailsBatismo() {
         '🟡 Mais ou Menos',
         '',
         '',
+        '',
         parsed.date,
         parsed.area || 'Não identificada',
         parsed.district || 'Configurar',
@@ -460,6 +466,7 @@ function onEdit(e) {
     col_(ACTIVE_HEADERS, 'TouchDown'),
     col_(ACTIVE_HEADERS, 'Entrevista'),
     col_(ACTIVE_HEADERS, 'Bloqueio Principal'),
+    col_(ACTIVE_HEADERS, 'Observação'),
     col_(ACTIVE_HEADERS, 'Próxima Ação'),
     col_(ACTIVE_HEADERS, 'Plano Igreja'),
     col_(ACTIVE_HEADERS, 'Reserva'),
@@ -529,6 +536,7 @@ function moverParaDatasCaidas_(activeSheet, rowNumber) {
   var district = row[col_(ACTIVE_HEADERS, 'Distrito') - 1];
   var baptismDate = row[col_(ACTIVE_HEADERS, 'Data Batismal') - 1];
   var block = row[col_(ACTIVE_HEADERS, 'Bloqueio Principal') - 1] || 'Outro';
+  var observation = row[col_(ACTIVE_HEADERS, 'Observação') - 1] || '';
   var nextAction = row[col_(ACTIVE_HEADERS, 'Próxima Ação') - 1] || '';
   var lastNextAction = row[col_(ACTIVE_HEADERS, 'Último Próximo Passo') - 1] || '';
   var emailId = row[col_(ACTIVE_HEADERS, 'Email ID') - 1] || '';
@@ -540,7 +548,7 @@ function moverParaDatasCaidas_(activeSheet, rowNumber) {
     district,
     baptismDate,
     block,
-    nextAction,
+    observation || nextAction,
     new Date(),
     mapBlockToDropReason_(block),
     lastNextAction,
@@ -568,9 +576,11 @@ function atualizarDashboard() {
 
   dashboard.getRange(1, 1, dashboard.getMaxRows(), dashboard.getMaxColumns()).breakApart();
   dashboard.clear();
+  dashboard.setFrozenRows(2);
+  dashboard.setFrozenColumns(1);
   dashboard.setColumnWidths(1, 11, 130);
-  dashboard.setColumnWidth(1, 150);
-  dashboard.setColumnWidth(2, 170);
+  dashboard.setColumnWidth(1, 170);
+  dashboard.setColumnWidth(7, 240);
   dashboard.setColumnWidth(8, 240);
   dashboard.setColumnWidth(11, 280);
 
@@ -700,7 +710,7 @@ function appendDistrictTables_(sheet, startRow, district, records) {
         .setBackground('#d9eaf7');
       row++;
 
-      var headers = ['Área', 'Nome', 'Semana', 'TD', 'Match', 'Entrev.', 'Status', 'Próxima Ação', 'Data Batismal', 'Último Próx. Passo', 'Situação'];
+      var headers = ['Nome', 'Semana', 'TD', 'Match', 'Entrev.', 'Status', 'Observação', 'Próxima Ação', 'Data Batismal', 'Último Próx. Passo', 'Situação'];
       sheet.getRange(row, 1, 1, headers.length)
         .setValues([headers])
         .setFontWeight('bold')
@@ -710,13 +720,13 @@ function appendDistrictTables_(sheet, startRow, district, records) {
       var values = areaRecords.map(function(record) {
         var state = getFollowUpState_(record, new Date());
         return [
-          record['Área'],
           record['Nome'],
           state.week,
           record['TouchDown'],
           record['Match'],
           record['Entrevista'],
           record['Status'],
+          record['Observação'],
           record['Próxima Ação'],
           record['Data Batismal'],
           record['Último Próximo Passo'],
@@ -794,8 +804,10 @@ function renderLdDistrictSheet_(sheet, title, records) {
   sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).breakApart();
   sheet.clear();
   sheet.setFrozenRows(3);
+  sheet.setFrozenColumns(1);
   sheet.setColumnWidths(1, 11, 120);
-  sheet.setColumnWidth(2, 170);
+  sheet.setColumnWidth(1, 170);
+  sheet.setColumnWidth(7, 240);
   sheet.setColumnWidth(8, 240);
   sheet.setColumnWidth(11, 280);
 
@@ -836,7 +848,7 @@ function appendLzActionSummary_(sheet, startRow, activeRecords) {
     .setBackground('#fce5cd');
   row++;
 
-  var headers = ['Distrito', 'Área', 'Nome', 'Semana', 'Próxima Ação', 'Último Próx. Passo', 'Situação'];
+  var headers = ['Nome', 'Semana', 'Status', 'Observação', 'Próxima Ação', 'Distrito', 'Área', 'Último Próx. Passo', 'Situação'];
   sheet.getRange(row, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#eeeeee');
   row++;
 
@@ -849,17 +861,19 @@ function appendLzActionSummary_(sheet, startRow, activeRecords) {
   var values = stale.map(function(record) {
     var state = getFollowUpState_(record, now);
     return [
-      record['Distrito'],
-      record['Área'],
       record['Nome'],
       state.week,
+      record['Status'],
+      record['Observação'],
       record['Próxima Ação'],
+      record['Distrito'],
+      record['Área'],
       record['Último Próximo Passo'],
       state.message
     ];
   });
   sheet.getRange(row, 1, values.length, headers.length).setValues(values).setBackground('#fce5cd');
-  sheet.getRange(row, 6, values.length, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  sheet.getRange(row, 8, values.length, 1).setNumberFormat('dd/MM/yyyy HH:mm');
   return row + values.length + 2;
 }
 
@@ -872,7 +886,7 @@ function appendReservedSummary_(sheet, startRow, reservedRecords) {
     .setBackground('#ead1dc');
   row++;
 
-  var headers = ['Distrito', 'Área', 'Nome', 'Semana', 'Próxima Ação', 'Data da Reserva'];
+  var headers = ['Nome', 'Semana', 'Status', 'Observação', 'Próxima Ação', 'Distrito', 'Área', 'Data da Reserva'];
   sheet.getRange(row, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#eeeeee');
   row++;
 
@@ -883,16 +897,18 @@ function appendReservedSummary_(sheet, startRow, reservedRecords) {
 
   var values = reservedRecords.map(function(record) {
     return [
-      record['Distrito'],
-      record['Área'],
       record['Nome'],
       record['Semana'],
+      record['Status'],
+      record['Observação'],
       record['Próxima Ação'],
+      record['Distrito'],
+      record['Área'],
       record['Data da Reserva']
     ];
   });
   sheet.getRange(row, 1, values.length, headers.length).setValues(values);
-  sheet.getRange(row, 6, values.length, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  sheet.getRange(row, 8, values.length, 1).setNumberFormat('dd/MM/yyyy HH:mm');
   return row + values.length + 2;
 }
 
@@ -993,6 +1009,7 @@ function enviarAlertasLZs() {
         ' | Área: ', record['Área'],
         ' | ', state.week,
         ' | Situação: ', state.message,
+        ' | Observação: ', record['Observação'] || 'Sem observação',
         ' | Próxima ação: ', record['Próxima Ação'] || 'Sem próxima ação'
       ].join('');
     });
@@ -1463,6 +1480,7 @@ function moverParaReservados_(activeSheet, rowNumber, reason) {
     record['Match'],
     record['Entrevista'],
     record['Status'] === 'Reservado' ? record['Status'] : 'Reservado',
+    record['Observação'],
     record['Próxima Ação'],
     record['Plano Igreja'],
     record['Data Batismal'],
@@ -1494,6 +1512,7 @@ function moverReservadoParaAtivas_(reservedSheet, rowNumber) {
     record['Match'],
     record['Entrevista'],
     record['Status'] === 'Reservado' ? '🟡 Mais ou Menos' : record['Status'],
+    record['Observação'],
     record['Próxima Ação'],
     record['Plano Igreja'],
     record['Data Batismal'],

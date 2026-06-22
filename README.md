@@ -45,6 +45,7 @@ Entre em contato com a área São José do Norte para marcar a entrevista batism
   - Match
   - Entrevista
   - Status
+  - Observação
   - Próxima Ação
   - Plano Igreja
   - Data Batismal
@@ -74,6 +75,10 @@ Essas abas mostram somente as pessoas daquele distrito. Dentro de cada distrito,
 4. Áreas dentro de cada semana
 
 Elas são pensadas para consulta rápida no celular.
+
+Nas abas dos LDs e no Dashboard, a coluna `Nome` fica como a primeira coluna e permanece congelada. Assim, ao rolar no celular, ainda dá para entender a situação de cada pessoa.
+
+Nessas tabelas, `Observação` aparece logo depois de `Status`, antes de `Próxima Ação`, para dar contexto rápido antes de decidir o próximo passo.
 
 A aba **Sem Distrito** mostra registros sem área/distrito reconhecido. Normalmente isso acontece quando:
 
