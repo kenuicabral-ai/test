@@ -311,6 +311,8 @@ function configurarAbaHistorico_(ss) {
 
 function configurarAbaDashboard_(ss) {
   var sheet = getOrCreateSheet_(ss, SHEETS.DASHBOARD);
+  sheet.setFrozenRows(0);
+  sheet.setFrozenColumns(0);
   sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).breakApart();
   sheet.clear();
   sheet.setColumnWidths(1, 8, 170);
@@ -574,6 +576,8 @@ function atualizarDashboard() {
   var dropped = ss.getSheetByName(SHEETS.DROPPED);
   var reserved = ss.getSheetByName(SHEETS.RESERVED);
 
+  dashboard.setFrozenRows(0);
+  dashboard.setFrozenColumns(0);
   dashboard.getRange(1, 1, dashboard.getMaxRows(), dashboard.getMaxColumns()).breakApart();
   dashboard.clear();
   dashboard.setFrozenRows(2);
@@ -585,13 +589,7 @@ function atualizarDashboard() {
   dashboard.setColumnWidth(11, 280);
 
   var row = 1;
-  dashboard.getRange(row, 1, 1, 11).merge();
-  dashboard.getRange(row, 1)
-    .setValue('Dashboard LZ - Próximo Passo das Datas Batismais')
-    .setFontSize(16)
-    .setFontWeight('bold')
-    .setBackground('#1f4e79')
-    .setFontColor('#ffffff');
+  setSectionTitle_(dashboard, row, 11, 'Dashboard LZ - Próximo Passo das Datas Batismais', '#1f4e79', '#ffffff', 16);
 
   row++;
   dashboard.getRange(row, 1)
@@ -605,12 +603,7 @@ function atualizarDashboard() {
   var districts = getDistricts_();
 
   districts.forEach(function(district) {
-    dashboard.getRange(row, 1, 1, 11).merge();
-    dashboard.getRange(row, 1)
-      .setValue(district)
-      .setFontSize(14)
-      .setFontWeight('bold')
-      .setBackground('#d9ead3');
+    setSectionTitle_(dashboard, row, 11, district, '#d9ead3', null, 14);
     row += 2;
 
     var districtRecords = activeRecords.filter(function(record) {
@@ -631,13 +624,26 @@ function atualizarDashboard() {
   dashboard.autoResizeColumns(1, 11);
 }
 
+function setSectionTitle_(sheet, row, colCount, title, background, fontColor, fontSize) {
+  var range = sheet.getRange(row, 1, 1, colCount);
+  range.clearContent();
+  range
+    .setBackground(background || '#eeeeee')
+    .setFontWeight('bold');
+
+  if (fontColor) {
+    range.setFontColor(fontColor);
+  }
+  if (fontSize) {
+    range.setFontSize(fontSize);
+  }
+
+  sheet.getRange(row, 1).setValue(title);
+}
+
 function appendDashboardSection_(sheet, startRow, title, headers, rows) {
   var row = startRow;
-  sheet.getRange(row, 1, 1, Math.max(1, headers.length)).merge();
-  sheet.getRange(row, 1)
-    .setValue(title)
-    .setFontWeight('bold')
-    .setBackground('#f4cccc');
+  setSectionTitle_(sheet, row, Math.max(1, headers.length), title, '#f4cccc');
   row++;
 
   sheet.getRange(row, 1, 1, headers.length)
@@ -673,11 +679,7 @@ function appendDistrictTables_(sheet, startRow, district, records) {
     }
 
     hasAnyRecord = true;
-    sheet.getRange(row, 1, 1, 11).merge();
-    sheet.getRange(row, 1)
-      .setValue(week)
-      .setFontWeight('bold')
-      .setBackground('#cfe2f3');
+    setSectionTitle_(sheet, row, 11, week, '#cfe2f3');
     row++;
 
     var areas = getAreasForDistrict_(district);
@@ -703,11 +705,7 @@ function appendDistrictTables_(sheet, startRow, district, records) {
       }
 
       areaRecords.sort(sortRecordsForFollowUp_);
-      sheet.getRange(row, 1, 1, 11).merge();
-      sheet.getRange(row, 1)
-        .setValue(area)
-        .setFontWeight('bold')
-        .setBackground('#d9eaf7');
+      setSectionTitle_(sheet, row, 11, area, '#d9eaf7');
       row++;
 
       var headers = ['Nome', 'Semana', 'TD', 'Match', 'Entrev.', 'Status', 'Observação', 'Próxima Ação', 'Data Batismal', 'Último Próx. Passo', 'Situação'];
@@ -755,12 +753,7 @@ function appendUnassignedSection_(sheet, startRow, activeRecords) {
   }
 
   var row = startRow;
-  sheet.getRange(row, 1, 1, 11).merge();
-  sheet.getRange(row, 1)
-    .setValue('⚪ Sem Distrito / Área não identificada')
-    .setFontSize(14)
-    .setFontWeight('bold')
-    .setBackground('#d9d2e9');
+  setSectionTitle_(sheet, row, 11, '⚪ Sem Distrito / Área não identificada', '#d9d2e9', null, 14);
   row += 2;
 
   row = appendDistrictTables_(sheet, row, 'Sem Distrito', records);
@@ -801,6 +794,8 @@ function atualizarAbasLDs_() {
 }
 
 function renderLdDistrictSheet_(sheet, title, records) {
+  sheet.setFrozenRows(0);
+  sheet.setFrozenColumns(0);
   sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).breakApart();
   sheet.clear();
   sheet.setFrozenRows(3);
@@ -811,15 +806,9 @@ function renderLdDistrictSheet_(sheet, title, records) {
   sheet.setColumnWidth(8, 240);
   sheet.setColumnWidth(11, 280);
 
-  sheet.getRange(1, 1, 1, 11).merge();
-  sheet.getRange(1, 1)
-    .setValue(title + ' - acompanhamento do LD')
-    .setFontSize(15)
-    .setFontWeight('bold')
-    .setBackground('#1f4e79')
-    .setFontColor('#ffffff');
+  setSectionTitle_(sheet, 1, 11, title + ' - acompanhamento do LD', '#1f4e79', '#ffffff', 15);
 
-  sheet.getRange(2, 1, 1, 11).merge();
+  sheet.getRange(2, 1, 1, 11).clearContent();
   sheet.getRange(2, 1)
     .setValue('Mostrando registros dentro da janela de ' + getViewingWindowDays_() + ' dias. Edite a base em "Datas Ativas".')
     .setFontStyle('italic');
@@ -841,11 +830,7 @@ function appendLzActionSummary_(sheet, startRow, activeRecords) {
       isNotAccompanied_(record, now);
   });
 
-  sheet.getRange(row, 1, 1, 11).merge();
-  sheet.getRange(row, 1)
-    .setValue('🟠 Lista de acompanhamento atrasado - último próximo passo há mais de 24h')
-    .setFontWeight('bold')
-    .setBackground('#fce5cd');
+  setSectionTitle_(sheet, row, 11, '🟠 Lista de acompanhamento atrasado - último próximo passo há mais de 24h', '#fce5cd');
   row++;
 
   var headers = ['Nome', 'Semana', 'Status', 'Observação', 'Próxima Ação', 'Distrito', 'Área', 'Último Próx. Passo', 'Situação'];
@@ -879,11 +864,7 @@ function appendLzActionSummary_(sheet, startRow, activeRecords) {
 
 function appendReservedSummary_(sheet, startRow, reservedRecords) {
   var row = startRow;
-  sheet.getRange(row, 1, 1, 11).merge();
-  sheet.getRange(row, 1)
-    .setValue('🟤 Reservados - só voltam quando Reserva for alterado para Não')
-    .setFontWeight('bold')
-    .setBackground('#ead1dc');
+  setSectionTitle_(sheet, row, 11, '🟤 Reservados - só voltam quando Reserva for alterado para Não', '#ead1dc');
   row++;
 
   var headers = ['Nome', 'Semana', 'Status', 'Observação', 'Próxima Ação', 'Distrito', 'Área', 'Data da Reserva'];
@@ -922,11 +903,7 @@ function appendProgressSummary_(sheet, startRow) {
     ['Total de avanços da semana', summary.total]
   ];
 
-  sheet.getRange(row, 1, 1, 2).merge();
-  sheet.getRange(row, 1)
-    .setValue('📈 Taxa de Progresso')
-    .setFontWeight('bold')
-    .setBackground('#cfe2f3');
+  setSectionTitle_(sheet, row, 2, '📈 Taxa de Progresso', '#cfe2f3');
   row++;
   sheet.getRange(row, 1, values.length, 2).setValues(values);
   row += values.length + 2;
@@ -948,11 +925,7 @@ function appendDroppedSummary_(sheet, startRow, droppedRecords) {
     reasons[reason] = (reasons[reason] || 0) + 1;
   });
 
-  sheet.getRange(row, 1, 1, 3).merge();
-  sheet.getRange(row, 1)
-    .setValue('📉 Datas Caídas')
-    .setFontWeight('bold')
-    .setBackground('#ead1dc');
+  setSectionTitle_(sheet, row, 3, '📉 Datas Caídas', '#ead1dc');
   row++;
   sheet.getRange(row, 1, 1, 2).setValues([['Total de datas caídas no mês', monthly.length]]);
   row += 2;
