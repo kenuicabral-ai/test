@@ -16,28 +16,33 @@ var SHEETS = {
   ACTIVE: 'Datas Ativas',
   DROPPED: 'Datas Caídas',
   CONFIG: 'Config',
+  RESERVED: 'Reservados',
   HISTORY: '_Histórico'
 };
 
 var ACTIVE_HEADERS = [
   'Nome',
+  'Semana',
+  'TouchDown',
+  'Match',
+  'Entrevista',
+  'Status',
+  'Próxima Ação',
+  'Plano Igreja',
+  'Data Batismal',
   'Área',
   'Distrito',
-  'Data Batismal',
-  'Semana',
-  'Status',
-  'Match',
-  'TouchDown',
-  'Entrevista',
   'Bloqueio Principal',
-  'Próxima Ação',
+  'Último Próximo Passo',
   'Última Atualização',
   'Resultado da Data',
+  'Reserva',
   'Email ID'
 ];
 
 var DROPPED_HEADERS = [
   'Nome',
+  'Semana',
   'Área',
   'Distrito',
   'Data Batismal Original',
@@ -45,6 +50,26 @@ var DROPPED_HEADERS = [
   'Observação',
   'Data da Queda',
   'Motivo da Queda',
+  'Último Próximo Passo',
+  'Email ID'
+];
+
+var RESERVED_HEADERS = [
+  'Nome',
+  'Semana',
+  'TouchDown',
+  'Match',
+  'Entrevista',
+  'Status',
+  'Próxima Ação',
+  'Plano Igreja',
+  'Data Batismal',
+  'Área',
+  'Distrito',
+  'Bloqueio Principal',
+  'Último Próximo Passo',
+  'Data da Reserva',
+  'Reserva',
   'Email ID'
 ];
 
@@ -63,6 +88,7 @@ var CONFIG_HEADERS = [
   'Área',
   'Distrito',
   'Aliases da Área',
+  'Email LZ',
   'Status',
   'Match',
   'TouchDown',
@@ -84,9 +110,19 @@ var DEFAULT_AREAS = [
 ];
 
 var OPTIONS = {
-  STATUS: ['🟡 Amarelo', '🟢 Verde', '👑 Coroa', '📅 Data Batismal', '⛪ Batizado', '⚠️ Sem Progresso'],
+  STATUS: [
+    '🟢 Firme para Igreja',
+    '🟡 Mais ou Menos',
+    '🔴 Risco',
+    '⛪ Foi à Igreja',
+    '⚠️ Não foi',
+    '📅 Data firme',
+    '⛪ Batizado',
+    'Reservado'
+  ],
   YES_NO: ['Sim', 'Não'],
   INTERVIEW: ['Sim', 'Não', 'Não Aplicável'],
+  RESERVE: ['Não', 'Sim'],
   BLOCKS: [
     'Sem Match',
     'Não foi à Igreja',
@@ -126,6 +162,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Ler emails agora', 'processarEmailsBatismo')
     .addItem('Atualizar Dashboard', 'atualizarDashboard')
+    .addItem('Enviar alerta aos LZs agora', 'enviarAlertasLZs')
     .addItem('Reaplicar validações', 'aplicarValidacoes')
     .addSeparator()
     .addItem('Instalar gatilhos automáticos', 'instalarGatilhos')
@@ -138,6 +175,7 @@ function setupSistemaBatismos() {
   configurarAbaAtivas_(ss);
   configurarAbaCaidas_(ss);
   configurarAbaConfig_(ss);
+  configurarAbaReservados_(ss);
   configurarAbaHistorico_(ss);
   configurarAbaDashboard_(ss);
 
@@ -150,18 +188,28 @@ function setupSistemaBatismos() {
 
 function configurarAbaAtivas_(ss) {
   var sheet = getOrCreateSheet_(ss, SHEETS.ACTIVE);
+  migrarCabecalhos_(sheet, ACTIVE_HEADERS, defaultActiveValue_);
   setupHeader_(sheet, ACTIVE_HEADERS, '#1f4e79', '#ffffff');
+  normalizarStatusSheet_(sheet, ACTIVE_HEADERS);
   sheet.setFrozenRows(1);
-  sheet.setColumnWidths(1, ACTIVE_HEADERS.length, 145);
+  sheet.setFrozenColumns(1);
+  sheet.setColumnWidths(1, ACTIVE_HEADERS.length, 110);
+  sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Nome'), 160);
+  sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Semana'), 80);
+  sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Status'), 155);
   sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Próxima Ação'), 240);
+  sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Plano Igreja'), 220);
+  sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Último Próximo Passo'), 145);
   sheet.setColumnWidth(col_(ACTIVE_HEADERS, 'Email ID'), 180);
   sheet.hideColumns(col_(ACTIVE_HEADERS, 'Email ID'));
   sheet.getRange(2, col_(ACTIVE_HEADERS, 'Data Batismal'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy');
+  sheet.getRange(2, col_(ACTIVE_HEADERS, 'Último Próximo Passo'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy HH:mm');
   sheet.getRange(2, col_(ACTIVE_HEADERS, 'Última Atualização'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy HH:mm');
 }
 
 function configurarAbaCaidas_(ss) {
   var sheet = getOrCreateSheet_(ss, SHEETS.DROPPED);
+  migrarCabecalhos_(sheet, DROPPED_HEADERS, defaultDroppedValue_);
   setupHeader_(sheet, DROPPED_HEADERS, '#7f1d1d', '#ffffff');
   sheet.setFrozenRows(1);
   sheet.setColumnWidths(1, DROPPED_HEADERS.length, 155);
@@ -170,11 +218,36 @@ function configurarAbaCaidas_(ss) {
   sheet.hideColumns(col_(DROPPED_HEADERS, 'Email ID'));
   sheet.getRange(2, col_(DROPPED_HEADERS, 'Data Batismal Original'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy');
   sheet.getRange(2, col_(DROPPED_HEADERS, 'Data da Queda'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  sheet.getRange(2, col_(DROPPED_HEADERS, 'Último Próximo Passo'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy HH:mm');
+}
+
+function configurarAbaReservados_(ss) {
+  var sheet = getOrCreateSheet_(ss, SHEETS.RESERVED);
+  migrarCabecalhos_(sheet, RESERVED_HEADERS, defaultReservedValue_);
+  setupHeader_(sheet, RESERVED_HEADERS, '#b45f06', '#ffffff');
+  normalizarStatusSheet_(sheet, RESERVED_HEADERS);
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(1);
+  sheet.setColumnWidths(1, RESERVED_HEADERS.length, 110);
+  sheet.setColumnWidth(col_(RESERVED_HEADERS, 'Nome'), 160);
+  sheet.setColumnWidth(col_(RESERVED_HEADERS, 'Próxima Ação'), 240);
+  sheet.setColumnWidth(col_(RESERVED_HEADERS, 'Plano Igreja'), 220);
+  sheet.setColumnWidth(col_(RESERVED_HEADERS, 'Email ID'), 180);
+  sheet.hideColumns(col_(RESERVED_HEADERS, 'Email ID'));
+  sheet.getRange(2, col_(RESERVED_HEADERS, 'Data Batismal'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy');
+  sheet.getRange(2, col_(RESERVED_HEADERS, 'Último Próximo Passo'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  sheet.getRange(2, col_(RESERVED_HEADERS, 'Data da Reserva'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy HH:mm');
 }
 
 function configurarAbaConfig_(ss) {
   var sheet = getOrCreateSheet_(ss, SHEETS.CONFIG);
   var hasExistingConfig = sheet.getLastRow() > 1;
+  var existingHeaders = sheet.getLastColumn() > 0
+    ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    : [];
+  if (hasExistingConfig && existingHeaders.indexOf('Email LZ') === -1 && existingHeaders.indexOf('Status') !== -1) {
+    sheet.insertColumnBefore(existingHeaders.indexOf('Status') + 1);
+  }
   setupHeader_(sheet, CONFIG_HEADERS, '#38761d', '#ffffff');
   sheet.setFrozenRows(1);
   sheet.setColumnWidths(1, CONFIG_HEADERS.length, 180);
@@ -199,6 +272,7 @@ function configurarAbaConfig_(ss) {
       DEFAULT_AREAS[i] ? DEFAULT_AREAS[i][0] : '',
       DEFAULT_AREAS[i] ? DEFAULT_AREAS[i][1] : '',
       DEFAULT_AREAS[i] ? DEFAULT_AREAS[i][2] : '',
+      '',
       OPTIONS.STATUS[i] || '',
       OPTIONS.YES_NO[i] || '',
       OPTIONS.YES_NO[i] || '',
@@ -232,9 +306,10 @@ function aplicarValidacoes() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var active = ss.getSheetByName(SHEETS.ACTIVE);
   var dropped = ss.getSheetByName(SHEETS.DROPPED);
+  var reserved = ss.getSheetByName(SHEETS.RESERVED);
   var config = ss.getSheetByName(SHEETS.CONFIG);
 
-  if (!active || !dropped || !config) {
+  if (!active || !dropped || !reserved || !config) {
     setupSistemaBatismos();
     return;
   }
@@ -246,9 +321,18 @@ function aplicarValidacoes() {
   setValidationFromConfig_(active, col_(ACTIVE_HEADERS, 'Entrevista'), rowCount, 'Entrevista');
   setValidationFromConfig_(active, col_(ACTIVE_HEADERS, 'Bloqueio Principal'), rowCount, 'Bloqueio Principal');
   setValidationFromConfig_(active, col_(ACTIVE_HEADERS, 'Resultado da Data'), rowCount, 'Resultado da Data');
+  setValidationFromList_(active, col_(ACTIVE_HEADERS, 'Reserva'), rowCount, OPTIONS.RESERVE);
 
   var droppedRowCount = Math.max(1, dropped.getMaxRows() - 1);
   setValidationFromConfig_(dropped, col_(DROPPED_HEADERS, 'Motivo da Queda'), droppedRowCount, 'Motivo da Queda');
+
+  var reservedRowCount = Math.max(1, reserved.getMaxRows() - 1);
+  setValidationFromConfig_(reserved, col_(RESERVED_HEADERS, 'Status'), reservedRowCount, 'Status');
+  setValidationFromConfig_(reserved, col_(RESERVED_HEADERS, 'Match'), reservedRowCount, 'Match');
+  setValidationFromConfig_(reserved, col_(RESERVED_HEADERS, 'TouchDown'), reservedRowCount, 'TouchDown');
+  setValidationFromConfig_(reserved, col_(RESERVED_HEADERS, 'Entrevista'), reservedRowCount, 'Entrevista');
+  setValidationFromConfig_(reserved, col_(RESERVED_HEADERS, 'Bloqueio Principal'), reservedRowCount, 'Bloqueio Principal');
+  setValidationFromList_(reserved, col_(RESERVED_HEADERS, 'Reserva'), reservedRowCount, OPTIONS.RESERVE);
 }
 
 function setValidationFromConfig_(targetSheet, targetCol, rowCount, configHeader) {
@@ -264,13 +348,22 @@ function setValidationFromConfig_(targetSheet, targetCol, rowCount, configHeader
   targetSheet.getRange(2, targetCol, rowCount, 1).setDataValidation(rule);
 }
 
+function setValidationFromList_(targetSheet, targetCol, rowCount, values) {
+  var rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(values, true)
+    .setAllowInvalid(false)
+    .build();
+  targetSheet.getRange(2, targetCol, rowCount, 1).setDataValidation(rule);
+}
+
 function processarEmailsBatismo() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   ensureSystemExists_(ss);
 
   var active = ss.getSheetByName(SHEETS.ACTIVE);
   var dropped = ss.getSheetByName(SHEETS.DROPPED);
-  var processedIds = getExistingEmailIdsFromSheets_(active, dropped);
+  var reserved = ss.getSheetByName(SHEETS.RESERVED);
+  var processedIds = getExistingEmailIdsFromSheets_(active, dropped, reserved);
   var label = getOrCreateGmailLabel_(PROCESSED_LABEL_NAME);
   var areaMap = getAreaMap_();
   var threads = GmailApp.search(EMAIL_SEARCH_QUERY, 0, 50);
@@ -293,18 +386,21 @@ function processarEmailsBatismo() {
       var now = new Date();
       active.appendRow([
         parsed.name,
+        getWeekLabel_(parsed.date),
+        'Não',
+        'Não',
+        'Não',
+        '🟡 Mais ou Menos',
+        '',
+        '',
+        parsed.date,
         parsed.area || 'Não identificada',
         parsed.district || 'Configurar',
-        parsed.date,
-        getWeekLabel_(parsed.date),
-        '🟡 Amarelo',
-        'Não',
-        'Não',
-        'Não',
-        '',
         '',
         now,
+        now,
         'Ativa',
+        'Não',
         emailId
       ]);
 
@@ -319,6 +415,9 @@ function processarEmailsBatismo() {
   });
 
   aplicarValidacoes();
+  atualizarSemanasEStatusVisual_();
+  moverReservadosAutomaticamente_();
+  limparRegistrosAntigos_();
   atualizarDashboard();
 
   notify_(createdCount + ' registro(s) criado(s) a partir do Gmail.');
@@ -330,7 +429,16 @@ function onEdit(e) {
   }
 
   var sheet = e.range.getSheet();
-  if (sheet.getName() !== SHEETS.ACTIVE || e.range.getRow() === 1) {
+  if (e.range.getRow() === 1) {
+    return;
+  }
+
+  if (sheet.getName() === SHEETS.RESERVED) {
+    handleReservedEdit_(e);
+    return;
+  }
+
+  if (sheet.getName() !== SHEETS.ACTIVE) {
     return;
   }
 
@@ -343,6 +451,8 @@ function onEdit(e) {
     col_(ACTIVE_HEADERS, 'Entrevista'),
     col_(ACTIVE_HEADERS, 'Bloqueio Principal'),
     col_(ACTIVE_HEADERS, 'Próxima Ação'),
+    col_(ACTIVE_HEADERS, 'Plano Igreja'),
+    col_(ACTIVE_HEADERS, 'Reserva'),
     col_(ACTIVE_HEADERS, 'Resultado da Data')
   ];
 
@@ -359,15 +469,43 @@ function onEdit(e) {
   var newValue = e.value || rowValues[editedCol - 1] || '';
 
   sheet.getRange(editedRow, col_(ACTIVE_HEADERS, 'Última Atualização')).setValue(new Date());
+  if (fieldName === 'Próxima Ação') {
+    sheet.getRange(editedRow, col_(ACTIVE_HEADERS, 'Último Próximo Passo')).setValue(new Date());
+  }
   registrarHistorico_(rowValues, fieldName, oldValue, newValue, 'Alteração manual');
 
   if (fieldName === 'Resultado da Data' && newValue === 'Data Caiu') {
     moverParaDatasCaidas_(sheet, editedRow);
   } else if (fieldName === 'Resultado da Data' && newValue === 'Batizado') {
     sheet.getRange(editedRow, col_(ACTIVE_HEADERS, 'Status')).setValue('⛪ Batizado');
+  } else if (fieldName === 'Reserva' && newValue === 'Sim') {
+    moverParaReservados_(sheet, editedRow, 'Reserva manual');
   }
 
+  atualizarSemanasEStatusVisual_();
+  moverReservadosAutomaticamente_();
+  limparRegistrosAntigos_();
   atualizarDashboard();
+}
+
+function handleReservedEdit_(e) {
+  var sheet = e.range.getSheet();
+  var editedCol = e.range.getColumn();
+  if (editedCol === col_(RESERVED_HEADERS, 'Próxima Ação')) {
+    sheet.getRange(e.range.getRow(), col_(RESERVED_HEADERS, 'Último Próximo Passo')).setValue(new Date());
+    return;
+  }
+
+  if (editedCol !== col_(RESERVED_HEADERS, 'Reserva')) {
+    return;
+  }
+
+  var newValue = e.value || '';
+  if (newValue === 'Não') {
+    moverReservadoParaAtivas_(sheet, e.range.getRow());
+    atualizarSemanasEStatusVisual_();
+    atualizarDashboard();
+  }
 }
 
 function moverParaDatasCaidas_(activeSheet, rowNumber) {
@@ -376,15 +514,18 @@ function moverParaDatasCaidas_(activeSheet, rowNumber) {
   var row = activeSheet.getRange(rowNumber, 1, 1, ACTIVE_HEADERS.length).getValues()[0];
 
   var name = row[col_(ACTIVE_HEADERS, 'Nome') - 1];
+  var week = row[col_(ACTIVE_HEADERS, 'Semana') - 1];
   var area = row[col_(ACTIVE_HEADERS, 'Área') - 1];
   var district = row[col_(ACTIVE_HEADERS, 'Distrito') - 1];
   var baptismDate = row[col_(ACTIVE_HEADERS, 'Data Batismal') - 1];
   var block = row[col_(ACTIVE_HEADERS, 'Bloqueio Principal') - 1] || 'Outro';
   var nextAction = row[col_(ACTIVE_HEADERS, 'Próxima Ação') - 1] || '';
+  var lastNextAction = row[col_(ACTIVE_HEADERS, 'Último Próximo Passo') - 1] || '';
   var emailId = row[col_(ACTIVE_HEADERS, 'Email ID') - 1] || '';
 
   dropped.appendRow([
     name,
+    week,
     area,
     district,
     baptismDate,
@@ -392,6 +533,7 @@ function moverParaDatasCaidas_(activeSheet, rowNumber) {
     nextAction,
     new Date(),
     mapBlockToDropReason_(block),
+    lastNextAction,
     emailId
   ]);
 
@@ -404,18 +546,28 @@ function atualizarDashboard() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   ensureSystemExists_(ss);
 
+  atualizarSemanasEStatusVisual_();
+  moverReservadosAutomaticamente_();
+  limparRegistrosAntigos_();
+  atualizarSemanasEStatusVisual_();
+
   var dashboard = ss.getSheetByName(SHEETS.DASHBOARD);
   var active = ss.getSheetByName(SHEETS.ACTIVE);
   var dropped = ss.getSheetByName(SHEETS.DROPPED);
+  var reserved = ss.getSheetByName(SHEETS.RESERVED);
 
   dashboard.getRange(1, 1, dashboard.getMaxRows(), dashboard.getMaxColumns()).breakApart();
   dashboard.clear();
-  dashboard.setColumnWidths(1, 8, 170);
+  dashboard.setColumnWidths(1, 11, 130);
+  dashboard.setColumnWidth(1, 150);
+  dashboard.setColumnWidth(2, 170);
+  dashboard.setColumnWidth(8, 240);
+  dashboard.setColumnWidth(11, 280);
 
   var row = 1;
-  dashboard.getRange(row, 1, 1, 6).merge();
+  dashboard.getRange(row, 1, 1, 11).merge();
   dashboard.getRange(row, 1)
-    .setValue('Dashboard LZ - Sistema de Datas Batismais')
+    .setValue('Dashboard LZ - Próximo Passo das Datas Batismais')
     .setFontSize(16)
     .setFontWeight('bold')
     .setBackground('#1f4e79')
@@ -429,10 +581,11 @@ function atualizarDashboard() {
 
   var activeRecords = getSheetRecords_(active, ACTIVE_HEADERS);
   var droppedRecords = getSheetRecords_(dropped, DROPPED_HEADERS);
+  var reservedRecords = getSheetRecords_(reserved, RESERVED_HEADERS);
   var districts = getDistricts_();
 
   districts.forEach(function(district) {
-    dashboard.getRange(row, 1, 1, 6).merge();
+    dashboard.getRange(row, 1, 1, 11).merge();
     dashboard.getRange(row, 1)
       .setValue(district)
       .setFontSize(14)
@@ -441,60 +594,19 @@ function atualizarDashboard() {
     row += 2;
 
     var districtRecords = activeRecords.filter(function(record) {
-      return record['Distrito'] === district && record['Resultado da Data'] !== 'Batizado';
+      return record['Distrito'] === district &&
+        record['Resultado da Data'] !== 'Batizado' &&
+        record['Reserva'] !== 'Sim';
     });
 
-    row = appendDashboardSection_(
-      dashboard,
-      row,
-      '🔴 Batismos esta semana sem TouchDown',
-      ['Nome', 'Área', 'Distrito', 'Data Batismal'],
-      districtRecords.filter(isThisWeekWithoutTouchdown_).map(function(record) {
-        return [record['Nome'], record['Área'], record['Distrito'], record['Data Batismal']];
-      })
-    );
-
-    row = appendDashboardSection_(
-      dashboard,
-      row,
-      '🔴 Verdes sem Match',
-      ['Nome', 'Área', 'Distrito'],
-      districtRecords.filter(function(record) {
-        return record['Status'] === '🟢 Verde' && record['Match'] !== 'Sim';
-      }).map(function(record) {
-        return [record['Nome'], record['Área'], record['Distrito']];
-      })
-    );
-
-    row = appendDashboardSection_(
-      dashboard,
-      row,
-      '🔴 Coroas sem Entrevista',
-      ['Nome', 'Área', 'Distrito', 'Data Batismal'],
-      districtRecords.filter(function(record) {
-        return record['Status'] === '👑 Coroa' && record['Entrevista'] !== 'Sim';
-      }).map(function(record) {
-        return [record['Nome'], record['Área'], record['Distrito'], record['Data Batismal']];
-      })
-    );
-
-    row = appendDashboardSection_(
-      dashboard,
-      row,
-      '🔴 Sem atualização há mais de 7 dias',
-      ['Nome', 'Área', 'Distrito', 'Última Atualização'],
-      districtRecords.filter(isStale_).map(function(record) {
-        return [record['Nome'], record['Área'], record['Distrito'], record['Última Atualização']];
-      })
-    );
-
-    row += 1;
+    row = appendDistrictTables_(dashboard, row, district, districtRecords);
   });
 
-  row = appendProgressSummary_(dashboard, row);
+  row = appendLzActionSummary_(dashboard, row, activeRecords);
+  row = appendReservedSummary_(dashboard, row, reservedRecords);
   row = appendDroppedSummary_(dashboard, row, droppedRecords);
 
-  dashboard.autoResizeColumns(1, 6);
+  dashboard.autoResizeColumns(1, 11);
 }
 
 function appendDashboardSection_(sheet, startRow, title, headers, rows) {
@@ -522,6 +634,151 @@ function appendDashboardSection_(sheet, startRow, title, headers, rows) {
   formatDateColumns_(sheet, row, rows.length, headers);
   row += rows.length + 2;
   return row;
+}
+
+function appendDistrictTables_(sheet, startRow, district, records) {
+  var row = startRow;
+  var areas = getAreasForDistrict_(district);
+  var recordsByArea = {};
+  records.forEach(function(record) {
+    var area = record['Área'] || 'Área não identificada';
+    if (!recordsByArea[area]) {
+      recordsByArea[area] = [];
+    }
+    recordsByArea[area].push(record);
+  });
+
+  Object.keys(recordsByArea).forEach(function(area) {
+    if (areas.indexOf(area) === -1) {
+      areas.push(area);
+    }
+  });
+
+  areas.forEach(function(area) {
+    var areaRecords = recordsByArea[area] || [];
+    if (areaRecords.length === 0) {
+      return;
+    }
+
+    areaRecords.sort(sortRecordsForFollowUp_);
+    sheet.getRange(row, 1, 1, 11).merge();
+    sheet.getRange(row, 1)
+      .setValue(area)
+      .setFontWeight('bold')
+      .setBackground('#d9eaf7');
+    row++;
+
+    var headers = ['Área', 'Nome', 'Semana', 'TD', 'Match', 'Entrev.', 'Status', 'Próxima Ação', 'Data Batismal', 'Último Próx. Passo', 'Situação'];
+    sheet.getRange(row, 1, 1, headers.length)
+      .setValues([headers])
+      .setFontWeight('bold')
+      .setBackground('#eeeeee');
+    row++;
+
+    var values = areaRecords.map(function(record) {
+      var state = getFollowUpState_(record, new Date());
+      return [
+        record['Área'],
+        record['Nome'],
+        state.week,
+        record['TouchDown'],
+        record['Match'],
+        record['Entrevista'],
+        record['Status'],
+        record['Próxima Ação'],
+        record['Data Batismal'],
+        record['Último Próximo Passo'],
+        state.message
+      ];
+    });
+
+    sheet.getRange(row, 1, values.length, headers.length).setValues(values);
+    values.forEach(function(_, index) {
+      var state = getFollowUpState_(areaRecords[index], new Date());
+      sheet.getRange(row + index, 1, 1, headers.length).setBackground(state.color);
+    });
+    sheet.getRange(row, 9, values.length, 1).setNumberFormat('dd/MM/yyyy');
+    sheet.getRange(row, 10, values.length, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+    row += values.length + 2;
+  });
+
+  return row + 1;
+}
+
+function appendLzActionSummary_(sheet, startRow, activeRecords) {
+  var row = startRow;
+  var now = new Date();
+  var stale = activeRecords.filter(function(record) {
+    return record['Resultado da Data'] !== 'Batizado' &&
+      record['Reserva'] !== 'Sim' &&
+      isNotAccompanied_(record, now);
+  });
+
+  sheet.getRange(row, 1, 1, 11).merge();
+  sheet.getRange(row, 1)
+    .setValue('🟠 Lista de acompanhamento atrasado - último próximo passo há mais de 24h')
+    .setFontWeight('bold')
+    .setBackground('#fce5cd');
+  row++;
+
+  var headers = ['Distrito', 'Área', 'Nome', 'Semana', 'Próxima Ação', 'Último Próx. Passo', 'Situação'];
+  sheet.getRange(row, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#eeeeee');
+  row++;
+
+  if (stale.length === 0) {
+    sheet.getRange(row, 1).setValue('Nenhuma pessoa atrasada no acompanhamento.');
+    return row + 2;
+  }
+
+  stale.sort(sortRecordsForFollowUp_);
+  var values = stale.map(function(record) {
+    var state = getFollowUpState_(record, now);
+    return [
+      record['Distrito'],
+      record['Área'],
+      record['Nome'],
+      state.week,
+      record['Próxima Ação'],
+      record['Último Próximo Passo'],
+      state.message
+    ];
+  });
+  sheet.getRange(row, 1, values.length, headers.length).setValues(values).setBackground('#fce5cd');
+  sheet.getRange(row, 6, values.length, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  return row + values.length + 2;
+}
+
+function appendReservedSummary_(sheet, startRow, reservedRecords) {
+  var row = startRow;
+  sheet.getRange(row, 1, 1, 11).merge();
+  sheet.getRange(row, 1)
+    .setValue('🟤 Reservados - só voltam quando Reserva for alterado para Não')
+    .setFontWeight('bold')
+    .setBackground('#ead1dc');
+  row++;
+
+  var headers = ['Distrito', 'Área', 'Nome', 'Semana', 'Próxima Ação', 'Data da Reserva'];
+  sheet.getRange(row, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#eeeeee');
+  row++;
+
+  if (reservedRecords.length === 0) {
+    sheet.getRange(row, 1).setValue('Nenhuma pessoa em reservados.');
+    return row + 2;
+  }
+
+  var values = reservedRecords.map(function(record) {
+    return [
+      record['Distrito'],
+      record['Área'],
+      record['Nome'],
+      record['Semana'],
+      record['Próxima Ação'],
+      record['Data da Reserva']
+    ];
+  });
+  sheet.getRange(row, 1, values.length, headers.length).setValues(values);
+  sheet.getRange(row, 6, values.length, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  return row + values.length + 2;
 }
 
 function appendProgressSummary_(sheet, startRow) {
@@ -583,6 +840,63 @@ function appendDroppedSummary_(sheet, startRow, droppedRecords) {
 
   sheet.getRange(row, 1, rows.length, 2).setValues(rows);
   return row + rows.length + 2;
+}
+
+function enviarAlertasLZs() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  ensureSystemExists_(ss);
+  atualizarSemanasEStatusVisual_();
+
+  var active = ss.getSheetByName(SHEETS.ACTIVE);
+  var activeRecords = getSheetRecords_(active, ACTIVE_HEADERS).filter(function(record) {
+    return record['Resultado da Data'] !== 'Batizado' &&
+      record['Reserva'] !== 'Sim' &&
+      isNotAccompanied_(record, new Date());
+  });
+  var emailsByDistrict = getLzEmailsByDistrict_();
+  var sentCount = 0;
+
+  getDistricts_().forEach(function(district) {
+    var email = emailsByDistrict[district];
+    if (!email) {
+      return;
+    }
+
+    var districtRecords = activeRecords.filter(function(record) {
+      return record['Distrito'] === district;
+    });
+    if (districtRecords.length === 0) {
+      return;
+    }
+
+    districtRecords.sort(sortRecordsForFollowUp_);
+    var lines = districtRecords.map(function(record) {
+      var state = getFollowUpState_(record, new Date());
+      return [
+        '- ',
+        record['Nome'],
+        ' | Área: ', record['Área'],
+        ' | ', state.week,
+        ' | Situação: ', state.message,
+        ' | Próxima ação: ', record['Próxima Ação'] || 'Sem próxima ação'
+      ].join('');
+    });
+
+    MailApp.sendEmail({
+      to: email,
+      subject: 'Acompanhamento atrasado - ' + district,
+      body: [
+        'Estas datas precisam de um novo próximo passo ou acompanhamento:',
+        '',
+        lines.join('\n'),
+        '',
+        'Atualize a coluna "Próxima Ação" na planilha para tirar a pessoa da lista laranja.'
+      ].join('\n')
+    });
+    sentCount++;
+  });
+
+  notify_(sentCount + ' alerta(s) enviado(s) aos LZs configurados.');
 }
 
 function getWeeklyProgressSummary_() {
@@ -825,6 +1139,34 @@ function getDistricts_() {
   return districts.length ? districts : ['Distrito 1', 'Distrito 2'];
 }
 
+function getAreasForDistrict_(district) {
+  var areaMap = getAreaMap_();
+  return areaMap
+    .filter(function(item) { return item.district === district; })
+    .map(function(item) { return item.area; });
+}
+
+function getLzEmailsByDistrict_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var config = ss.getSheetByName(SHEETS.CONFIG);
+  var result = {};
+  if (!config || config.getLastRow() < 2) {
+    return result;
+  }
+
+  var districtCol = col_(CONFIG_HEADERS, 'Distrito');
+  var emailCol = col_(CONFIG_HEADERS, 'Email LZ');
+  var values = config.getRange(2, 1, config.getLastRow() - 1, CONFIG_HEADERS.length).getValues();
+  values.forEach(function(row) {
+    var district = row[districtCol - 1];
+    var email = row[emailCol - 1];
+    if (district && email && !result[district]) {
+      result[district] = email;
+    }
+  });
+  return result;
+}
+
 function getExistingEmailIds_(sheet) {
   var result = {};
   var lastRow = sheet.getLastRow();
@@ -842,20 +1184,25 @@ function getExistingEmailIds_(sheet) {
   return result;
 }
 
-function getExistingEmailIdsFromSheets_(activeSheet, droppedSheet) {
+function getExistingEmailIdsFromSheets_(activeSheet, droppedSheet, reservedSheet) {
   var result = getExistingEmailIds_(activeSheet);
-  if (!droppedSheet || droppedSheet.getLastRow() < 2) {
-    return result;
+  addEmailIdsFromSheet_(result, droppedSheet, DROPPED_HEADERS);
+  addEmailIdsFromSheet_(result, reservedSheet, RESERVED_HEADERS);
+  return result;
+}
+
+function addEmailIdsFromSheet_(target, sheet, headers) {
+  if (!sheet || sheet.getLastRow() < 2) {
+    return;
   }
 
-  var emailCol = col_(DROPPED_HEADERS, 'Email ID');
-  var values = droppedSheet.getRange(2, emailCol, droppedSheet.getLastRow() - 1, 1).getValues();
+  var emailCol = col_(headers, 'Email ID');
+  var values = sheet.getRange(2, emailCol, sheet.getLastRow() - 1, 1).getValues();
   values.forEach(function(row) {
     if (row[0]) {
-      result[row[0]] = true;
+      target[row[0]] = true;
     }
   });
-  return result;
 }
 
 function registrarHistorico_(activeRowValues, fieldName, oldValue, newValue, note) {
@@ -876,6 +1223,243 @@ function registrarHistorico_(activeRowValues, fieldName, oldValue, newValue, not
     newValue,
     note || ''
   ]);
+}
+
+function atualizarSemanasEStatusVisual_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var active = ss.getSheetByName(SHEETS.ACTIVE);
+  if (!active || active.getLastRow() < 2) {
+    return;
+  }
+
+  var now = new Date();
+  var lastRow = active.getLastRow();
+  var values = active.getRange(2, 1, lastRow - 1, ACTIVE_HEADERS.length).getValues();
+
+  values.forEach(function(row, index) {
+    var rowNumber = index + 2;
+    var record = rowToRecord_(row, ACTIVE_HEADERS);
+    var state = getFollowUpState_(record, now);
+    active.getRange(rowNumber, col_(ACTIVE_HEADERS, 'Semana')).setValue(state.week);
+    active.getRange(rowNumber, 1, 1, ACTIVE_HEADERS.length).setBackground(state.color);
+  });
+}
+
+function moverReservadosAutomaticamente_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var active = ss.getSheetByName(SHEETS.ACTIVE);
+  if (!active || active.getLastRow() < 2) {
+    return;
+  }
+
+  for (var row = active.getLastRow(); row >= 2; row--) {
+    var values = active.getRange(row, 1, 1, ACTIVE_HEADERS.length).getValues()[0];
+    var record = rowToRecord_(values, ACTIVE_HEADERS);
+    if (record['Resultado da Data'] === 'Batizado' || record['Reserva'] === 'Sim') {
+      continue;
+    }
+    if (isReservedCandidate_(record, new Date())) {
+      moverParaReservados_(active, row, 'Sem novo próximo passo há 3 dias');
+    }
+  }
+}
+
+function moverParaReservados_(activeSheet, rowNumber, reason) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var reserved = ss.getSheetByName(SHEETS.RESERVED);
+  var row = activeSheet.getRange(rowNumber, 1, 1, ACTIVE_HEADERS.length).getValues()[0];
+  var record = rowToRecord_(row, ACTIVE_HEADERS);
+
+  reserved.appendRow([
+    record['Nome'],
+    record['Semana'],
+    record['TouchDown'],
+    record['Match'],
+    record['Entrevista'],
+    record['Status'] === 'Reservado' ? record['Status'] : 'Reservado',
+    record['Próxima Ação'],
+    record['Plano Igreja'],
+    record['Data Batismal'],
+    record['Área'],
+    record['Distrito'],
+    record['Bloqueio Principal'],
+    record['Último Próximo Passo'],
+    new Date(),
+    'Sim',
+    record['Email ID']
+  ]);
+
+  registrarHistorico_(row, 'Reserva', record['Reserva'] || 'Não', 'Sim', reason || 'Movido para Reservados');
+  activeSheet.deleteRow(rowNumber);
+  aplicarValidacoes();
+}
+
+function moverReservadoParaAtivas_(reservedSheet, rowNumber) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var active = ss.getSheetByName(SHEETS.ACTIVE);
+  var row = reservedSheet.getRange(rowNumber, 1, 1, RESERVED_HEADERS.length).getValues()[0];
+  var record = rowToRecord_(row, RESERVED_HEADERS);
+  var now = new Date();
+
+  active.appendRow([
+    record['Nome'],
+    getWeekLabel_(record['Data Batismal']),
+    record['TouchDown'],
+    record['Match'],
+    record['Entrevista'],
+    record['Status'] === 'Reservado' ? '🟡 Mais ou Menos' : record['Status'],
+    record['Próxima Ação'],
+    record['Plano Igreja'],
+    record['Data Batismal'],
+    record['Área'],
+    record['Distrito'],
+    record['Bloqueio Principal'],
+    now,
+    now,
+    'Ativa',
+    'Não',
+    record['Email ID']
+  ]);
+
+  registrarHistorico_(recordToActiveRow_(record), 'Reserva', 'Sim', 'Não', 'Retirado manualmente dos Reservados');
+  reservedSheet.deleteRow(rowNumber);
+  aplicarValidacoes();
+}
+
+function limparRegistrosAntigos_() {
+  limparRegistrosAntigosDaAba_(SHEETS.ACTIVE, ACTIVE_HEADERS, 'Data Batismal', 'Último Próximo Passo', true);
+  limparRegistrosAntigosDaAba_(SHEETS.DROPPED, DROPPED_HEADERS, 'Data da Queda', 'Último Próximo Passo', false);
+}
+
+function limparRegistrosAntigosDaAba_(sheetName, headers, ageDateHeader, lastNextActionHeader, keepFutureDate) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet || sheet.getLastRow() < 2) {
+    return;
+  }
+
+  for (var row = sheet.getLastRow(); row >= 2; row--) {
+    var values = sheet.getRange(row, 1, 1, headers.length).getValues()[0];
+    var record = rowToRecord_(values, headers);
+    if (shouldKeepVisibleRecord_(record, ageDateHeader, lastNextActionHeader, new Date(), keepFutureDate)) {
+      continue;
+    }
+    registrarHistorico_(recordToActiveRow_(record), 'Reset', '', sheetName, 'Removido da tabela visível após 3 semanas sem data futura ou próximo passo recente');
+    sheet.deleteRow(row);
+  }
+}
+
+function shouldKeepVisibleRecord_(record, ageDateHeader, lastNextActionHeader, now, keepFutureDate) {
+  var ageDate = asDate_(record[ageDateHeader]);
+  var lastNextAction = asDate_(record[lastNextActionHeader]);
+  var threeWeeksAgo = new Date(now);
+  threeWeeksAgo.setDate(threeWeeksAgo.getDate() - 21);
+  var oneWeekAgo = new Date(now);
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+  if (keepFutureDate && ageDate && ageDate >= getStartOfDay_(now)) {
+    return true;
+  }
+  if (lastNextAction && lastNextAction >= oneWeekAgo) {
+    return true;
+  }
+
+  return !ageDate || ageDate >= threeWeeksAgo;
+}
+
+function getFollowUpState_(record, now) {
+  var week = getWeekLabel_(record['Data Batismal'], now);
+  var missing = getMissingPriorities_(record, week, now);
+  var color = '#ffffff';
+  var message = 'Normal';
+
+  if (week === 'Semana 3' && record['Entrevista'] !== 'Sim') {
+    return {
+      week: week,
+      color: '#f4cccc',
+      severity: 3,
+      message: 'Semana do batismo sem entrevista batismal'
+    };
+  }
+
+  if (isNotAccompanied_(record, now)) {
+    return {
+      week: week,
+      color: '#fce5cd',
+      severity: 2,
+      message: 'Sem novo próximo passo há mais de 24h'
+    };
+  }
+
+  if (missing.length >= 2) {
+    color = '#f4cccc';
+    message = 'Faltam prioridades: ' + missing.join(', ');
+  } else if (missing.length === 1) {
+    color = '#fff2cc';
+    message = 'Falta: ' + missing[0];
+  } else if (isThursdayOrLater_(now)) {
+    color = '#d9ead3';
+    message = 'Tudo em dia para esta semana';
+  }
+
+  return {
+    week: week,
+    color: color,
+    severity: missing.length >= 2 ? 3 : missing.length,
+    message: message
+  };
+}
+
+function getMissingPriorities_(record, week) {
+  if (week === 'Semana 1') {
+    return [
+      hasText_(record['Plano Igreja']) ? '' : 'Plano para igreja',
+      asDate_(record['Data Batismal']) ? '' : 'Data batismal'
+    ].filter(Boolean);
+  }
+
+  if (week === 'Semana 2') {
+    return [
+      record['Match'] === 'Sim' ? '' : 'Match',
+      hasText_(record['Próxima Ação']) ? '' : 'Próxima ação'
+    ].filter(Boolean);
+  }
+
+  return [
+    record['Entrevista'] === 'Sim' ? '' : 'Entrevista batismal',
+    asDate_(record['Data Batismal']) ? '' : 'Data batismal'
+  ].filter(Boolean);
+}
+
+function isNotAccompanied_(record, now) {
+  var lastNextAction = asDate_(record['Último Próximo Passo']);
+  if (!hasText_(record['Próxima Ação']) || !lastNextAction) {
+    return true;
+  }
+  var cutoff = new Date(now);
+  cutoff.setHours(cutoff.getHours() - 24);
+  return lastNextAction < cutoff;
+}
+
+function isReservedCandidate_(record, now) {
+  var lastNextAction = asDate_(record['Último Próximo Passo']) ||
+    asDate_(record['Última Atualização']) ||
+    asDate_(record['Data Batismal']);
+  if (!lastNextAction) {
+    return false;
+  }
+  var cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - 3);
+  return lastNextAction < cutoff;
+}
+
+function sortRecordsForFollowUp_(a, b) {
+  var stateA = getFollowUpState_(a, new Date());
+  var stateB = getFollowUpState_(b, new Date());
+  if (stateB.severity !== stateA.severity) {
+    return stateB.severity - stateA.severity;
+  }
+  return String(a['Nome'] || '').localeCompare(String(b['Nome'] || ''));
 }
 
 function isThisWeekWithoutTouchdown_(record) {
@@ -908,9 +1492,53 @@ function getStartOfWeek_(date) {
   return result;
 }
 
-function getWeekLabel_(date) {
-  var start = getStartOfWeek_(date);
-  return 'Semana de ' + Utilities.formatDate(start, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+function getWeekLabel_(date, referenceDate) {
+  var baptismDate = asDate_(date);
+  if (!baptismDate) {
+    return 'Semana 1';
+  }
+
+  var startToday = getStartOfWeek_(referenceDate || new Date());
+  var startBaptism = getStartOfWeek_(baptismDate);
+  var diffDays = Math.round((startBaptism.getTime() - startToday.getTime()) / 86400000);
+  var weeksUntilBaptism = Math.floor(diffDays / 7);
+
+  if (weeksUntilBaptism <= 0) {
+    return 'Semana 3';
+  }
+  if (weeksUntilBaptism === 1) {
+    return 'Semana 2';
+  }
+  return 'Semana 1';
+}
+
+function getStartOfDay_(date) {
+  var result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function isThursdayOrLater_(date) {
+  var day = date.getDay();
+  return day === 0 || day >= 4;
+}
+
+function hasText_(value) {
+  return normalizeSpaces_(value).length > 0;
+}
+
+function rowToRecord_(row, headers) {
+  var record = {};
+  headers.forEach(function(header, index) {
+    record[header] = row[index];
+  });
+  return record;
+}
+
+function recordToActiveRow_(record) {
+  return ACTIVE_HEADERS.map(function(header) {
+    return record[header] || '';
+  });
 }
 
 function getSheetRecords_(sheet, headers) {
@@ -967,11 +1595,132 @@ function ensureSystemExists_(ss) {
   if (!ss.getSheetByName(SHEETS.CONFIG)) {
     configurarAbaConfig_(ss);
   }
+  if (!ss.getSheetByName(SHEETS.RESERVED)) {
+    configurarAbaReservados_(ss);
+  }
   if (!ss.getSheetByName(SHEETS.HISTORY)) {
     configurarAbaHistorico_(ss);
   }
   if (!ss.getSheetByName(SHEETS.DASHBOARD)) {
     configurarAbaDashboard_(ss);
+  }
+}
+
+function migrarCabecalhos_(sheet, targetHeaders, defaultValueFn) {
+  if (sheet.getLastRow() < 1 || sheet.getLastColumn() < 1) {
+    return;
+  }
+
+  var existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var sameHeaders = targetHeaders.every(function(header, index) {
+    return existingHeaders[index] === header;
+  });
+  if (sameHeaders && existingHeaders.length === targetHeaders.length) {
+    return;
+  }
+
+  var oldIndex = {};
+  existingHeaders.forEach(function(header, index) {
+    if (header) {
+      oldIndex[header] = index;
+    }
+  });
+  var hasKnownHeader = Object.keys(oldIndex).some(function(header) {
+    return targetHeaders.indexOf(header) !== -1;
+  });
+  if (!hasKnownHeader || sheet.getLastRow() < 2) {
+    return;
+  }
+
+  var oldValues = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  var migrated = oldValues.map(function(row) {
+    var existingRecord = {};
+    Object.keys(oldIndex).forEach(function(header) {
+      existingRecord[header] = row[oldIndex[header]];
+    });
+    return targetHeaders.map(function(header) {
+      if (oldIndex[header] !== undefined) {
+        return existingRecord[header];
+      }
+      return defaultValueFn ? defaultValueFn(header, existingRecord) : '';
+    });
+  });
+
+  sheet.clear();
+  if (migrated.length > 0) {
+    sheet.getRange(2, 1, migrated.length, targetHeaders.length).setValues(migrated);
+  }
+}
+
+function defaultActiveValue_(header, record) {
+  var now = new Date();
+  if (header === 'Semana') {
+    return getWeekLabel_(record['Data Batismal'], now);
+  }
+  if (header === 'Status') {
+    return mapOldStatus_(record['Status']);
+  }
+  if (header === 'Plano Igreja') {
+    return '';
+  }
+  if (header === 'Último Próximo Passo') {
+    return record['Última Atualização'] || now;
+  }
+  if (header === 'Reserva') {
+    return 'Não';
+  }
+  return '';
+}
+
+function defaultDroppedValue_(header, record) {
+  if (header === 'Semana') {
+    return getWeekLabel_(record['Data Batismal Original'], new Date());
+  }
+  if (header === 'Último Próximo Passo') {
+    return record['Data da Queda'] || '';
+  }
+  return '';
+}
+
+function defaultReservedValue_(header, record) {
+  if (header === 'Reserva') {
+    return 'Sim';
+  }
+  if (header === 'Data da Reserva') {
+    return new Date();
+  }
+  return defaultActiveValue_(header, record);
+}
+
+function mapOldStatus_(status) {
+  var map = {
+    '🟡 Amarelo': '🟡 Mais ou Menos',
+    '🟢 Verde': '📅 Data firme',
+    '👑 Coroa': '📅 Data firme',
+    '📅 Data Batismal': '📅 Data firme',
+    '⚠️ Sem Progresso': '🔴 Risco'
+  };
+  return map[status] || status || '🟡 Mais ou Menos';
+}
+
+function normalizarStatusSheet_(sheet, headers) {
+  if (sheet.getLastRow() < 2 || headers.indexOf('Status') === -1) {
+    return;
+  }
+
+  var statusCol = col_(headers, 'Status');
+  var values = sheet.getRange(2, statusCol, sheet.getLastRow() - 1, 1).getValues();
+  var changed = false;
+  var normalized = values.map(function(row) {
+    var mapped = mapOldStatus_(row[0]);
+    if (mapped !== row[0]) {
+      changed = true;
+    }
+    return [mapped];
+  });
+
+  if (changed) {
+    sheet.getRange(2, statusCol, normalized.length, 1).setValues(normalized);
   }
 }
 
@@ -1054,7 +1803,7 @@ function instalarGatilhos() {
   var triggers = ScriptApp.getProjectTriggers();
   triggers.forEach(function(trigger) {
     var handler = trigger.getHandlerFunction();
-    if (handler === 'processarEmailsBatismo' || handler === 'atualizarDashboard') {
+    if (handler === 'processarEmailsBatismo' || handler === 'atualizarDashboard' || handler === 'enviarAlertasLZs') {
       ScriptApp.deleteTrigger(trigger);
     }
   });
@@ -1068,5 +1817,11 @@ function instalarGatilhos() {
     .timeBased()
     .everyDays(1)
     .atHour(6)
+    .create();
+
+  ScriptApp.newTrigger('enviarAlertasLZs')
+    .timeBased()
+    .everyDays(1)
+    .atHour(7)
     .create();
 }

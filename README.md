@@ -6,6 +6,7 @@ Este repositório contém um MVP em Google Apps Script para criar automaticament
 - Datas Ativas
 - Datas Caídas
 - Config
+- Reservados
 - Histórico oculto para cálculo de progresso
 
 ## Como instalar
@@ -22,7 +23,7 @@ Este repositório contém um MVP em Google Apps Script para criar automaticament
 ## O que o script faz
 
 - Cria as abas com cabeçalhos e formatação.
-- Configura dropdowns para status, match, TouchDown, entrevista, bloqueio e resultado.
+- Configura dropdowns para status, TouchDown, match, entrevista, bloqueio, resultado e reserva.
 - Lê emails recentes do Gmail enviados por `noreply-missionary-info@mail.churchofjesuschrist.org` com assunto `Batismo marcado`.
 - Extrai nome, área e data batismal quando o email segue padrão semelhante a:
 
@@ -34,9 +35,48 @@ Entre em contato com a área São José do Norte para marcar a entrevista batism
 ```
 
 - Cria registros em **Datas Ativas**.
+- Usa `Semana 1`, `Semana 2` e `Semana 3` em vez de uma data na coluna Semana.
+- Organiza a aba **Datas Ativas** para uso no celular:
+  - Nome
+  - Semana
+  - TouchDown
+  - Match
+  - Entrevista
+  - Status
+  - Próxima Ação
+  - Plano Igreja
+  - Data Batismal
+  - Área
+  - Distrito
 - Atualiza automaticamente **Última Atualização** quando o LD altera campos principais.
+- Atualiza **Último Próximo Passo** quando o LD muda a coluna `Próxima Ação`.
 - Move para **Datas Caídas** quando `Resultado da Data` vira `Data Caiu`.
-- Atualiza o **Dashboard LZ**.
+- Move para **Reservados** quando alguém passa 3 dias sem novo próximo passo.
+- Só tira alguém de **Reservados** quando a coluna `Reserva` é alterada manualmente para `Não`.
+- Atualiza o **Dashboard LZ** com uma tabela por distrito, separada por área.
+
+## Lógica das semanas
+
+- **Semana 1**: mais de uma semana antes da semana do batismo.
+  - Prioridades: plano para ir à igreja e data batismal.
+- **Semana 2**: semana anterior à semana do batismo.
+  - Prioridades: acompanhar a data e ter match.
+- **Semana 3**: semana do batismo.
+  - Prioridade: entrevista batismal.
+
+## Cores das linhas
+
+- **Laranja**: sem novo próximo passo há mais de 24h.
+- **Amarelo**: falta uma prioridade da semana.
+- **Vermelho**: faltam duas prioridades da semana, ou está na semana do batismo sem entrevista.
+- **Verde**: tudo em dia a partir de quinta-feira.
+- **Branco**: tudo normal antes de quinta-feira.
+
+O TouchDown só é foco da primeira semana; depois da primeira semana ele não deixa a linha vermelha para sempre.
+
+## Alertas para LZs
+
+Na aba **Config**, preencha a coluna `Email LZ` ao lado do distrito/área. O script envia um alerta diário com as pessoas sem novo próximo passo há mais de 24h.
 
 ## Ajuste importante
 
