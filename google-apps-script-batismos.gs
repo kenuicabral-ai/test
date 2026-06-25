@@ -168,6 +168,9 @@ function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui
     .createMenu('Batismos')
+    .addItem('COMECE AQUI - limpar e configurar manual', 'COMECE_AQUI')
+    .addItem('CONTINUAR - atualizar sistema', 'CONTINUAR')
+    .addSeparator()
     .addItem('Rodar tudo agora (recomendado)', 'RODAR_TUDO')
     .addItem('Resetar emails e rodar tudo', 'RESETAR_E_REPROCESSAR_TUDO')
     .addItem('Limpar tudo e recomeçar manual', 'LIMPAR_TUDO_E_RECOMECAR_MANUAL')
@@ -197,6 +200,14 @@ function onOpen() {
     .addSeparator()
     .addItem('Instalar gatilhos automáticos', 'instalarGatilhos')
     .addToUi();
+}
+
+function COMECE_AQUI() {
+  LIMPAR_TUDO_E_RECOMECAR_MANUAL();
+}
+
+function CONTINUAR() {
+  RODAR_TUDO();
 }
 
 function RODAR_TUDO() {

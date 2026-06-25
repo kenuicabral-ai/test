@@ -24,7 +24,21 @@ Este repositório contém um MVP em Google Apps Script para criar automaticament
 
 ## Qual função executar no Apps Script
 
-Use somente esta função na maioria das vezes:
+Se aparecerem muitas funções no Apps Script, use apenas uma destas:
+
+```javascript
+COMECE_AQUI
+```
+
+Use para zerar tudo e começar configurando distritos/áreas manualmente.
+
+```javascript
+CONTINUAR
+```
+
+Use no dia a dia para atualizar emails, Dashboard e abas dos LDs.
+
+Também é possível usar esta função na maioria das vezes:
 
 ```javascript
 RODAR_TUDO
