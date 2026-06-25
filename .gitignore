@@ -1,0 +1,10 @@
+# clasp (contém scriptId específico do projeto)
+.clasp.json
+.clasprc.json
+
+# Node / ferramentas
+node_modules/
+npm-debug.log*
+
+# SO
+.DS_Store
