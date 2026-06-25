@@ -18,7 +18,9 @@ var SHEETS = {
   CONFIG: 'Config',
   RESERVED: 'Reservados',
   UNASSIGNED: 'Sem Distrito',
-  HISTORY: '_Histórico'
+  HISTORY: '_Histórico',
+  PENDING_EMAILS: 'Emails Pendentes',
+  ERRORS: 'Erros'
 };
 
 var ACTIVE_HEADERS = [
@@ -85,6 +87,21 @@ var HISTORY_HEADERS = [
   'Valor Anterior',
   'Valor Novo',
   'Observação'
+];
+
+var PENDING_EMAIL_HEADERS = [
+  'Data/Hora',
+  'Message ID',
+  'Assunto',
+  'Motivo',
+  'Trecho'
+];
+
+var ERROR_HEADERS = [
+  'Data/Hora',
+  'Função',
+  'Descrição',
+  'Usuário'
 ];
 
 var CONFIG_HEADERS = [
@@ -158,6 +175,12 @@ var OPTIONS = {
 var PROCESSED_LABEL_NAME = 'batismos-processado';
 var DEFAULT_VIEW_WINDOW_DAYS = 21;
 var VIEW_WINDOW_SETTING_NAME = 'Janela de visualização (dias)';
+var RESERVE_DAYS_SETTING_NAME = 'Dias para Reservado';
+var STALE_HOURS_SETTING_NAME = 'Horas sem Atualização';
+var ALERT_HOUR_SETTING_NAME = 'Hora do Email';
+var DEFAULT_RESERVE_DAYS = 3;
+var DEFAULT_STALE_HOURS = 24;
+var DEFAULT_ALERT_HOUR = 20;
 var EMAIL_LOOKBACK_DAYS = 21;
 
 // Busca os avisos oficiais de batismo marcado enviados pelo sistema da Igreja.
@@ -167,25 +190,11 @@ var EMAIL_BASE_SEARCH_QUERY = 'newer_than:' + EMAIL_LOOKBACK_DAYS + 'd from:nore
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui
-    .createMenu('Batismos')
-    .addItem('COMECE AQUI - limpar e configurar manual', 'COMECE_AQUI')
-    .addItem('CONTINUAR - atualizar sistema', 'CONTINUAR')
-    .addSeparator()
-    .addItem('Rodar tudo agora (recomendado)', 'RODAR_TUDO')
-    .addItem('Resetar emails e rodar tudo', 'RESETAR_E_REPROCESSAR_TUDO')
-    .addItem('Limpar tudo e recomeçar manual', 'LIMPAR_TUDO_E_RECOMECAR_MANUAL')
-    .addSeparator()
-    .addItem('Configurar sistema completo', 'setupSistemaBatismos')
-    .addItem('Ler emails agora', 'processarEmailsBatismo')
-    .addItem('Reprocessar emails das últimas 3 semanas', 'reprocessarEmailsBatismo')
-    .addItem('Resetar marcador de emails processados', 'resetarEmailsProcessados')
-    .addItem('Diagnosticar emails de batismo', 'diagnosticarEmailsBatismo')
-    .addItem('Atualizar Dashboard', 'atualizarDashboard')
-    .addItem('Atualizar abas por distrito', 'atualizarAbasLDs')
-    .addItem('Enviar alerta aos LZs agora', 'enviarAlertasLZs')
-    .addItem('Reaplicar validações', 'aplicarValidacoes')
-    .addSeparator()
+    .createMenu('Mission Progress')
+    .addItem('Rodar Sistema', 'RODAR_TUDO')
+    .addItem('Atualizar Agora', 'CONTINUAR')
     .addSubMenu(ui.createMenu('Configurações')
+      .addItem('Começar do zero', 'COMECE_AQUI')
       .addItem('Criar distrito', 'criarDistrito')
       .addItem('Renomear distrito', 'renomearDistrito')
       .addItem('Excluir distrito', 'excluirDistrito')
@@ -197,33 +206,64 @@ function onOpen() {
       .addSeparator()
       .addItem('Aplicar janela de 3 semanas', 'APLICAR_JANELA_3_SEMANAS')
       .addItem('Definir janela de visualização', 'definirJanelaVisualizacao'))
-    .addSeparator()
-    .addItem('Instalar gatilhos automáticos', 'instalarGatilhos')
+    .addItem('Reprocessar Emails', 'RESETAR_E_REPROCESSAR_TUDO')
+    .addItem('Diagnóstico', 'diagnosticarEmailsBatismo')
+    .addItem('Ajuda', 'AJUDA')
     .addToUi();
 }
 
 function COMECE_AQUI() {
-  LIMPAR_TUDO_E_RECOMECAR_MANUAL();
+  runSafely_('COMECE_AQUI', function() {
+    LIMPAR_TUDO_E_RECOMECAR_MANUAL();
+  });
 }
 
 function CONTINUAR() {
-  RODAR_TUDO();
+  runSafely_('CONTINUAR', function() {
+    RODAR_TUDO();
+  });
 }
 
 function RODAR_TUDO() {
-  executarRotinaCompleta_({
-    resetarEmails: false,
-    instalarGatilhos: true,
-    mostrarAlerta: true
+  runSafely_('RODAR_TUDO', function() {
+    executarRotinaCompleta_({
+      resetarEmails: false,
+      instalarGatilhos: true,
+      mostrarAlerta: true
+    });
   });
 }
 
 function RESETAR_E_REPROCESSAR_TUDO() {
-  executarRotinaCompleta_({
-    resetarEmails: true,
-    instalarGatilhos: true,
-    mostrarAlerta: true
+  runSafely_('RESETAR_E_REPROCESSAR_TUDO', function() {
+    executarRotinaCompleta_({
+      resetarEmails: true,
+      instalarGatilhos: true,
+      mostrarAlerta: true
+    });
   });
+}
+
+function AJUDA() {
+  notify_([
+    'Mission Progress Manager',
+    '',
+    'Use apenas estas opções no dia a dia:',
+    '',
+    '1. Rodar Sistema',
+    '   Lê emails, atualiza base, regras, dashboards e gatilhos.',
+    '',
+    '2. Atualizar Agora',
+    '   Mesma rotina normal, sem limpar dados.',
+    '',
+    '3. Configurações',
+    '   Crie distritos, vincule áreas e ajuste a janela visível.',
+    '',
+    '4. Reprocessar Emails',
+    '   Use quando limpou registros e quer puxar os emails das últimas 3 semanas novamente.',
+    '',
+    'Se algo der erro, veja a aba "Erros". Emails não interpretados vão para "Emails Pendentes".'
+  ].join('\n'));
 }
 
 function LIMPAR_TUDO_E_RECOMECAR_MANUAL() {
@@ -329,6 +369,8 @@ function configurarSistemaBase_(ss) {
   configurarAbaConfig_(ss);
   configurarAbaReservados_(ss);
   configurarAbaHistorico_(ss);
+  configurarAbaEmailsPendentes_(ss);
+  configurarAbaErros_(ss);
   configurarAbaDashboard_(ss);
 
   aplicarValidacoes();
@@ -447,6 +489,24 @@ function configurarAbaHistorico_(ss) {
   sheet.setColumnWidths(1, HISTORY_HEADERS.length, 160);
   sheet.getRange(2, 1, Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy HH:mm');
   sheet.hideSheet();
+}
+
+function configurarAbaEmailsPendentes_(ss) {
+  var sheet = getOrCreateSheet_(ss, SHEETS.PENDING_EMAILS);
+  setupHeader_(sheet, PENDING_EMAIL_HEADERS, '#b45f06', '#ffffff');
+  sheet.setFrozenRows(1);
+  sheet.setColumnWidths(1, PENDING_EMAIL_HEADERS.length, 180);
+  sheet.setColumnWidth(col_(PENDING_EMAIL_HEADERS, 'Trecho'), 420);
+  sheet.getRange(2, col_(PENDING_EMAIL_HEADERS, 'Data/Hora'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy HH:mm');
+}
+
+function configurarAbaErros_(ss) {
+  var sheet = getOrCreateSheet_(ss, SHEETS.ERRORS);
+  setupHeader_(sheet, ERROR_HEADERS, '#990000', '#ffffff');
+  sheet.setFrozenRows(1);
+  sheet.setColumnWidths(1, ERROR_HEADERS.length, 220);
+  sheet.setColumnWidth(col_(ERROR_HEADERS, 'Descrição'), 520);
+  sheet.getRange(2, col_(ERROR_HEADERS, 'Data/Hora'), Math.max(1, sheet.getMaxRows() - 1), 1).setNumberFormat('dd/MM/yyyy HH:mm');
 }
 
 function configurarAbaDashboard_(ss) {
@@ -568,7 +628,7 @@ function diagnosticarEmailsBatismo() {
     'Conversas com marcador "' + PROCESSED_LABEL_NAME + '" (até 500): ' + processedCount,
     '',
     pendingThreads.length === 0 && processedCount > 0
-      ? 'Provável causa: os emails já estão marcados como processados. Use "Resetar marcador de emails processados" ou "Reprocessar emails dos últimos 90 dias".'
+      ? 'Provável causa: os emails já estão marcados como processados. Use "Reprocessar Emails" no menu Mission Progress.'
       : 'Se não aparecerem emails, confira se o remetente/assunto batem com a busca acima.'
   ].join('\n');
   notify_(message);
@@ -598,6 +658,7 @@ function processarEmailsBatismoComBusca_(searchQuery, showAlert, skipRefresh) {
       var text = message.getSubject() + '\n' + message.getPlainBody();
       var parsed = parseBaptismEmail_(text, areaMap);
       if (!parsed || !parsed.name || !parsed.date) {
+        registrarEmailPendente_(message, 'Não foi possível extrair nome ou data batismal.');
         return;
       }
       if (!shouldImportBaptismDate_(parsed.date)) {
@@ -1906,37 +1967,60 @@ function isUnassignedRecord_(record) {
 }
 
 function getViewingWindowDays_() {
+  return getConfigNumber_(VIEW_WINDOW_SETTING_NAME, DEFAULT_VIEW_WINDOW_DAYS);
+}
+
+function getReserveDays_() {
+  return getConfigNumber_(RESERVE_DAYS_SETTING_NAME, DEFAULT_RESERVE_DAYS);
+}
+
+function getStaleHours_() {
+  return getConfigNumber_(STALE_HOURS_SETTING_NAME, DEFAULT_STALE_HOURS);
+}
+
+function getAlertHour_() {
+  return getConfigNumber_(ALERT_HOUR_SETTING_NAME, DEFAULT_ALERT_HOUR);
+}
+
+function getConfigNumber_(settingName, defaultValue) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var config = ss.getSheetByName(SHEETS.CONFIG);
   if (!config || config.getLastRow() < 2) {
-    return DEFAULT_VIEW_WINDOW_DAYS;
+    return defaultValue;
   }
 
   var settingCol = col_(CONFIG_HEADERS, 'Configuração');
   var valueCol = col_(CONFIG_HEADERS, 'Valor');
   var values = config.getRange(2, 1, config.getLastRow() - 1, CONFIG_HEADERS.length).getValues();
   for (var i = 0; i < values.length; i++) {
-    if (values[i][settingCol - 1] === VIEW_WINDOW_SETTING_NAME) {
-      var days = Number(values[i][valueCol - 1]);
-      return days > 0 ? days : DEFAULT_VIEW_WINDOW_DAYS;
+    if (values[i][settingCol - 1] === settingName) {
+      var value = Number(values[i][valueCol - 1]);
+      return value > 0 ? value : defaultValue;
     }
   }
-  return DEFAULT_VIEW_WINDOW_DAYS;
+  return defaultValue;
 }
 
 function ensureConfigSettings_(sheet) {
+  ensureConfigSetting_(sheet, VIEW_WINDOW_SETTING_NAME, DEFAULT_VIEW_WINDOW_DAYS);
+  ensureConfigSetting_(sheet, RESERVE_DAYS_SETTING_NAME, DEFAULT_RESERVE_DAYS);
+  ensureConfigSetting_(sheet, STALE_HOURS_SETTING_NAME, DEFAULT_STALE_HOURS);
+  ensureConfigSetting_(sheet, ALERT_HOUR_SETTING_NAME, DEFAULT_ALERT_HOUR);
+}
+
+function ensureConfigSetting_(sheet, settingName, defaultValue) {
   var settingCol = col_(CONFIG_HEADERS, 'Configuração');
   var valueCol = col_(CONFIG_HEADERS, 'Valor');
   var lastRow = Math.max(2, sheet.getLastRow());
   var values = sheet.getRange(2, settingCol, Math.max(1, lastRow - 1), 1).getValues();
   var found = values.some(function(row) {
-    return row[0] === VIEW_WINDOW_SETTING_NAME;
+    return row[0] === settingName;
   });
 
   if (!found) {
     var targetRow = sheet.getLastRow() + 1;
-    sheet.getRange(targetRow, settingCol).setValue(VIEW_WINDOW_SETTING_NAME);
-    sheet.getRange(targetRow, valueCol).setValue(DEFAULT_VIEW_WINDOW_DAYS);
+    sheet.getRange(targetRow, settingCol).setValue(settingName);
+    sheet.getRange(targetRow, valueCol).setValue(defaultValue);
   }
 }
 
@@ -2295,7 +2379,7 @@ function isNotAccompanied_(record, now) {
     return true;
   }
   var cutoff = new Date(now);
-  cutoff.setHours(cutoff.getHours() - 24);
+  cutoff.setHours(cutoff.getHours() - getStaleHours_());
   return lastNextAction < cutoff;
 }
 
@@ -2307,7 +2391,7 @@ function isReservedCandidate_(record, now) {
     return false;
   }
   var cutoff = new Date(now);
-  cutoff.setDate(cutoff.getDate() - 3);
+  cutoff.setDate(cutoff.getDate() - getReserveDays_());
   return lastNextAction < cutoff;
 }
 
@@ -2443,6 +2527,56 @@ function getOrCreateGmailLabel_(name) {
   return GmailApp.getUserLabelByName(name) || GmailApp.createLabel(name);
 }
 
+function registrarEmailPendente_(message, reason) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss.getSheetByName(SHEETS.PENDING_EMAILS)) {
+    configurarAbaEmailsPendentes_(ss);
+  }
+  var sheet = ss.getSheetByName(SHEETS.PENDING_EMAILS);
+  var body = normalizeSpaces_(message.getPlainBody()).substring(0, 500);
+  sheet.appendRow([
+    new Date(),
+    message.getId(),
+    message.getSubject(),
+    reason,
+    body
+  ]);
+}
+
+function runSafely_(functionName, callback) {
+  try {
+    return callback();
+  } catch (error) {
+    logError_(functionName, error);
+    notify_('Erro em ' + functionName + ':\n' + error.message + '\n\nVeja a aba "Erros" para detalhes.');
+    throw error;
+  }
+}
+
+function logError_(functionName, error) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss.getSheetByName(SHEETS.ERRORS)) {
+      configurarAbaErros_(ss);
+    }
+    var sheet = ss.getSheetByName(SHEETS.ERRORS);
+    var userEmail = '';
+    try {
+      userEmail = Session.getActiveUser().getEmail();
+    } catch (ignored) {
+      userEmail = '';
+    }
+    sheet.appendRow([
+      new Date(),
+      functionName,
+      error && error.stack ? error.stack : String(error),
+      userEmail
+    ]);
+  } catch (loggingError) {
+    Logger.log('Falha ao registrar erro: ' + loggingError);
+  }
+}
+
 function ensureSystemExists_(ss) {
   if (!ss.getSheetByName(SHEETS.ACTIVE)) {
     configurarAbaAtivas_(ss);
@@ -2461,6 +2595,12 @@ function ensureSystemExists_(ss) {
   }
   if (!ss.getSheetByName(SHEETS.DASHBOARD)) {
     configurarAbaDashboard_(ss);
+  }
+  if (!ss.getSheetByName(SHEETS.PENDING_EMAILS)) {
+    configurarAbaEmailsPendentes_(ss);
+  }
+  if (!ss.getSheetByName(SHEETS.ERRORS)) {
+    configurarAbaErros_(ss);
   }
 }
 
@@ -2685,6 +2825,6 @@ function instalarGatilhos() {
   ScriptApp.newTrigger('enviarAlertasLZs')
     .timeBased()
     .everyDays(1)
-    .atHour(7)
+    .atHour(getAlertHour_())
     .create();
 }

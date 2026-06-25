@@ -8,6 +8,8 @@ Este repositório contém um MVP em Google Apps Script para criar automaticament
 - Config
 - Reservados
 - Sem Distrito
+- Emails Pendentes
+- Erros
 - Abas separadas por distrito, como `Distrito 1` e `Distrito 2`
 - Histórico oculto para cálculo de progresso
 
@@ -72,6 +74,25 @@ VINCULAR_AREA_A_DISTRITO
 
 As outras funções existem para o menu e para automações internas. Normalmente você não precisa rodá-las manualmente.
 
+## Menu principal
+
+O menu da planilha chama:
+
+```text
+Mission Progress
+```
+
+Ele mostra apenas:
+
+- Rodar Sistema
+- Atualizar Agora
+- Configurações
+- Reprocessar Emails
+- Diagnóstico
+- Ajuda
+
+As funções técnicas continuam no código, mas o usuário deve usar o menu simples.
+
 ## O que o script faz
 
 - Cria as abas com cabeçalhos e formatação.
@@ -110,6 +131,8 @@ Entre em contato com a área São José do Norte para marcar a entrevista batism
 - Atualiza o **Dashboard LZ** com uma tabela por distrito, separada por `Semana 1`, `Semana 2`, `Semana 3` e depois por área.
 - Gera abas separadas por distrito para que cada LD olhe apenas as pessoas do próprio distrito.
 - Gera a aba **Sem Distrito** para datas sem área/distrito reconhecido.
+- Envia emails que não puderem ser interpretados para **Emails Pendentes**.
+- Registra erros na aba **Erros**.
 
 ## Abas dos LDs
 
@@ -167,6 +190,13 @@ Também é possível editar manualmente a aba **Config**:
 - `Distrito`: distrito ao qual a área pertence.
 - `Aliases da Área`: variações de nome separadas por vírgula.
 - `Email LZ`: email que recebe alerta de acompanhamento atrasado.
+
+Configurações gerais também ficam na aba **Config**:
+
+- `Janela de visualização (dias)` padrão `21`
+- `Dias para Reservado` padrão `3`
+- `Horas sem Atualização` padrão `24`
+- `Hora do Email` padrão `20`
 
 Função direta para ligar uma área a um distrito:
 
