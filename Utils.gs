@@ -16,6 +16,7 @@ MT.Utils = (function () {
 
   function resetSheet(name) {
     var target = ensureSheet(name);
+    target.getRange(1, 1, target.getMaxRows(), target.getMaxColumns()).breakApart();
     target.clear();
     target.clearConditionalFormatRules();
     target.showRows(1, target.getMaxRows());

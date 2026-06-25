@@ -115,7 +115,8 @@ MT.SYSTEM_KEYS = {
   DISTRICT_FILTER: 'districtFilter',
   ZONE_FILTER_DISTRICT: 'zoneFilterDistrict',
   ZONE_FILTER_METRIC: 'zoneFilterMetric',
-  LAST_REFRESH: 'lastRefresh'
+  LAST_REFRESH: 'lastRefresh',
+  INSTALLABLE_ON_EDIT: 'installableOnEdit'
 };
 
 MT.CONFIG = {
