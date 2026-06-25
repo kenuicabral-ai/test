@@ -158,10 +158,11 @@ var OPTIONS = {
 var PROCESSED_LABEL_NAME = 'batismos-processado';
 var DEFAULT_VIEW_WINDOW_DAYS = 21;
 var VIEW_WINDOW_SETTING_NAME = 'Janela de visualização (dias)';
+var EMAIL_LOOKBACK_DAYS = 21;
 
 // Busca os avisos oficiais de batismo marcado enviados pelo sistema da Igreja.
-var EMAIL_SEARCH_QUERY = 'newer_than:90d from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado" -label:' + PROCESSED_LABEL_NAME;
-var EMAIL_BASE_SEARCH_QUERY = 'newer_than:90d from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado"';
+var EMAIL_SEARCH_QUERY = 'newer_than:' + EMAIL_LOOKBACK_DAYS + 'd from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado" -label:' + PROCESSED_LABEL_NAME;
+var EMAIL_BASE_SEARCH_QUERY = 'newer_than:' + EMAIL_LOOKBACK_DAYS + 'd from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado"';
 
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
@@ -169,10 +170,11 @@ function onOpen() {
     .createMenu('Batismos')
     .addItem('Rodar tudo agora (recomendado)', 'RODAR_TUDO')
     .addItem('Resetar emails e rodar tudo', 'RESETAR_E_REPROCESSAR_TUDO')
+    .addItem('Limpar tudo e recomeçar manual', 'LIMPAR_TUDO_E_RECOMECAR_MANUAL')
     .addSeparator()
     .addItem('Configurar sistema completo', 'setupSistemaBatismos')
     .addItem('Ler emails agora', 'processarEmailsBatismo')
-    .addItem('Reprocessar emails dos últimos 90 dias', 'reprocessarEmailsBatismo')
+    .addItem('Reprocessar emails das últimas 3 semanas', 'reprocessarEmailsBatismo')
     .addItem('Resetar marcador de emails processados', 'resetarEmailsProcessados')
     .addItem('Diagnosticar emails de batismo', 'diagnosticarEmailsBatismo')
     .addItem('Atualizar Dashboard', 'atualizarDashboard')
@@ -186,9 +188,11 @@ function onOpen() {
       .addItem('Excluir distrito', 'excluirDistrito')
       .addSeparator()
       .addItem('Adicionar área', 'adicionarArea')
+      .addItem('Vincular área a distrito', 'VINCULAR_AREA_A_DISTRITO')
       .addItem('Editar área', 'editarArea')
       .addItem('Excluir área', 'excluirArea')
       .addSeparator()
+      .addItem('Aplicar janela de 3 semanas', 'APLICAR_JANELA_3_SEMANAS')
       .addItem('Definir janela de visualização', 'definirJanelaVisualizacao'))
     .addSeparator()
     .addItem('Instalar gatilhos automáticos', 'instalarGatilhos')
@@ -209,6 +213,51 @@ function RESETAR_E_REPROCESSAR_TUDO() {
     instalarGatilhos: true,
     mostrarAlerta: true
   });
+}
+
+function LIMPAR_TUDO_E_RECOMECAR_MANUAL() {
+  var ui = SpreadsheetApp.getUi();
+  var response = ui.alert(
+    'Limpar tudo e recomeçar manual',
+    'Isso apaga registros das abas Datas Ativas, Datas Caídas, Reservados e Histórico, remove áreas/distritos da Config e reseta marcadores de email. Depois você criará distritos e áreas manualmente. Continuar?',
+    ui.ButtonSet.YES_NO
+  );
+  if (response !== ui.Button.YES) {
+    return;
+  }
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  configurarSistemaBase_(ss);
+  clearGeneratedLdSheets_();
+  clearSheetData_(SHEETS.ACTIVE);
+  clearSheetData_(SHEETS.DROPPED);
+  clearSheetData_(SHEETS.RESERVED);
+  clearSheetData_(SHEETS.HISTORY);
+  clearConfigMappings_();
+  setConfigSetting_(VIEW_WINDOW_SETTING_NAME, DEFAULT_VIEW_WINDOW_DAYS);
+  var resetCount = resetarEmailsProcessados_(false);
+  aplicarValidacoes();
+  atualizarDashboard();
+
+  notify_([
+    'Tudo limpo para recomeçar manualmente.',
+    '',
+    'Agora use:',
+    'Batismos > Configurações > Criar distrito',
+    'Batismos > Configurações > Vincular área a distrito',
+    '',
+    'Janela de visualização: ' + DEFAULT_VIEW_WINDOW_DAYS + ' dias.',
+    'Marcadores de email resetados: ' + resetCount,
+    '',
+    'Depois rode RODAR_TUDO para puxar só os emails das últimas 3 semanas.'
+  ].join('\n'));
+}
+
+function APLICAR_JANELA_3_SEMANAS() {
+  setConfigSetting_(VIEW_WINDOW_SETTING_NAME, DEFAULT_VIEW_WINDOW_DAYS);
+  limparRegistrosAntigos_();
+  atualizarDashboard();
+  notify_('Janela de visualização definida para ' + DEFAULT_VIEW_WINDOW_DAYS + ' dias. Datas antigas foram removidas das telas principais.');
 }
 
 function setupSistemaBatismos() {
@@ -538,6 +587,11 @@ function processarEmailsBatismoComBusca_(searchQuery, showAlert, skipRefresh) {
       var text = message.getSubject() + '\n' + message.getPlainBody();
       var parsed = parseBaptismEmail_(text, areaMap);
       if (!parsed || !parsed.name || !parsed.date) {
+        return;
+      }
+      if (!shouldImportBaptismDate_(parsed.date)) {
+        processedIds[emailId] = true;
+        createdInThread = true;
         return;
       }
 
@@ -1393,6 +1447,7 @@ function getDistricts_() {
         districts.push(district);
       }
     });
+    return districts;
   }
 
   if (districts.length === 0) {
@@ -1483,6 +1538,36 @@ function adicionarArea() {
   var email = getEmailForDistrict_(district);
   getConfigSheet_().appendRow(configRow_(area, district, aliases, email));
   atualizarDepoisDeConfig_('Área adicionada: ' + area + ' em ' + district);
+}
+
+function VINCULAR_AREA_A_DISTRITO() {
+  var ui = SpreadsheetApp.getUi();
+  var area = promptText_(ui, 'Vincular área a distrito', 'Nome exato da área:');
+  if (!area) {
+    return;
+  }
+  var district = promptText_(ui, 'Vincular área a distrito', 'Nome do distrito dessa área:');
+  if (!district) {
+    return;
+  }
+  var aliases = promptText_(ui, 'Vincular área a distrito', 'Aliases separados por vírgula (opcional):', true) || area;
+
+  var existing = getAreaConfigRecord_(area);
+  var changedConfig;
+  if (existing) {
+    changedConfig = updateAreaConfig_(area, area, district, aliases);
+  } else {
+    getConfigSheet_().appendRow(configRow_(area, district, aliases, getEmailForDistrict_(district)));
+    changedConfig = 1;
+  }
+
+  var changedRecords = updateDistrictForArea_(area, district);
+  atualizarDepoisDeConfig_(
+    'Área vinculada.\nÁrea: ' + area +
+    '\nDistrito: ' + district +
+    '\nConfig atualizada: ' + changedConfig +
+    '\nRegistros corrigidos: ' + changedRecords
+  );
 }
 
 function editarArea() {
@@ -1782,6 +1867,17 @@ function getVisibleActiveRecords_(records) {
   });
 }
 
+function shouldImportBaptismDate_(date) {
+  var baptismDate = asDate_(date);
+  if (!baptismDate) {
+    return false;
+  }
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - getViewingWindowDays_());
+  cutoff = getStartOfDay_(cutoff);
+  return baptismDate >= cutoff;
+}
+
 function isAssignedToDistrict_(record, district) {
   return !isUnassignedRecord_(record) && record['Distrito'] === district;
 }
@@ -1850,6 +1946,49 @@ function setConfigSetting_(settingName, value) {
   var targetRow = config.getLastRow() + 1;
   config.getRange(targetRow, settingCol).setValue(settingName);
   config.getRange(targetRow, valueCol).setValue(value);
+}
+
+function clearSheetData_(sheetName) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet || sheet.getLastRow() < 2) {
+    return;
+  }
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent().clearFormat();
+}
+
+function clearConfigMappings_() {
+  var config = getConfigSheet_();
+  var lastRow = config.getLastRow();
+  if (lastRow < 2) {
+    return;
+  }
+
+  // Limpa apenas Área, Distrito, Aliases e Email LZ. As listas de dropdown continuam.
+  config.getRange(2, col_(CONFIG_HEADERS, 'Área'), lastRow - 1, 1).clearContent();
+  config.getRange(2, col_(CONFIG_HEADERS, 'Distrito'), lastRow - 1, 1).clearContent();
+  config.getRange(2, col_(CONFIG_HEADERS, 'Aliases da Área'), lastRow - 1, 1).clearContent();
+  config.getRange(2, col_(CONFIG_HEADERS, 'Email LZ'), lastRow - 1, 1).clearContent();
+}
+
+function clearGeneratedLdSheets_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var protectedNames = {};
+  [SHEETS.DASHBOARD, SHEETS.ACTIVE, SHEETS.DROPPED, SHEETS.CONFIG, SHEETS.RESERVED, SHEETS.UNASSIGNED, SHEETS.HISTORY].forEach(function(name) {
+    protectedNames[name] = true;
+  });
+
+  getDistricts_().forEach(function(district) {
+    var sheet = ss.getSheetByName(sanitizeSheetName_(district));
+    if (sheet && !protectedNames[sheet.getName()]) {
+      ss.deleteSheet(sheet);
+    }
+  });
+
+  var unassigned = ss.getSheetByName(SHEETS.UNASSIGNED);
+  if (unassigned) {
+    unassigned.clear();
+  }
 }
 
 function getLzEmailsByDistrict_() {

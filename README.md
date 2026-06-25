@@ -44,13 +44,26 @@ Se você apagou as linhas da planilha e quer puxar de novo os emails antigos, us
 RESETAR_E_REPROCESSAR_TUDO
 ```
 
+Se quiser zerar tudo e criar distritos/áreas manualmente, use:
+
+```javascript
+LIMPAR_TUDO_E_RECOMECAR_MANUAL
+```
+
+Depois crie os distritos e vincule as áreas pelo menu, ou rode:
+
+```javascript
+VINCULAR_AREA_A_DISTRITO
+```
+
 As outras funções existem para o menu e para automações internas. Normalmente você não precisa rodá-las manualmente.
 
 ## O que o script faz
 
 - Cria as abas com cabeçalhos e formatação.
 - Configura dropdowns para status, TouchDown, match, entrevista, bloqueio, resultado e reserva.
-- Lê emails recentes do Gmail enviados por `noreply-missionary-info@mail.churchofjesuschrist.org` com assunto `Batismo marcado`.
+- Lê emails das últimas 3 semanas enviados por `noreply-missionary-info@mail.churchofjesuschrist.org` com assunto `Batismo marcado`.
+- Importa somente datas dentro da janela de visualização, por padrão as últimas 3 semanas.
 - Extrai nome, área e data batismal quando o email segue padrão semelhante a:
 
 ```text
@@ -126,8 +139,10 @@ Opções disponíveis:
 - Renomear distrito
 - Excluir distrito
 - Adicionar área
+- Vincular área a distrito
 - Editar área
 - Excluir área
+- Aplicar janela de 3 semanas
 - Definir janela de visualização
 
 Excluir distrito ou área não apaga pessoas da planilha. O sistema apenas remove a configuração e move os registros afetados para `Configurar` / `Não identificada`, para que apareçam em **Sem Distrito** até serem corrigidos.
@@ -138,6 +153,14 @@ Também é possível editar manualmente a aba **Config**:
 - `Distrito`: distrito ao qual a área pertence.
 - `Aliases da Área`: variações de nome separadas por vírgula.
 - `Email LZ`: email que recebe alerta de acompanhamento atrasado.
+
+Função direta para ligar uma área a um distrito:
+
+```javascript
+VINCULAR_AREA_A_DISTRITO
+```
+
+Ela pergunta o nome da área, o distrito e aliases. Se a área já existir, atualiza. Se não existir, cria.
 
 ## Lógica das semanas
 
@@ -175,7 +198,7 @@ Se você apagar as linhas da planilha para resetar, os emails antigos continuam 
 Para puxar os emails novamente, use:
 
 ```text
-Batismos > Reprocessar emails dos últimos 90 dias
+Batismos > Reprocessar emails das últimas 3 semanas
 ```
 
 Ou, se quiser fazer em duas etapas:
@@ -205,12 +228,18 @@ Isso controla quantos dias de datas aparecem no Dashboard e nas abas dos LDs. Se
 
 Datas fora dessa janela deixam de aparecer nas telas principais, a menos que tenham uma data futura ou um próximo passo atualizado recentemente.
 
+Para forçar novamente 3 semanas:
+
+```javascript
+APLICAR_JANELA_3_SEMANAS
+```
+
 ## Ajuste importante
 
 Se os emails tiverem outro formato, ajuste no script:
 
 ```javascript
-var EMAIL_SEARCH_QUERY = 'newer_than:90d from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado" -label:' + PROCESSED_LABEL_NAME;
+var EMAIL_SEARCH_QUERY = 'newer_than:21d from:noreply-missionary-info@mail.churchofjesuschrist.org subject:"Batismo marcado" -label:' + PROCESSED_LABEL_NAME;
 ```
 
 Também é possível adicionar apelidos de áreas na aba **Config**, coluna `Aliases da Área`.
