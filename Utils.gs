@@ -152,7 +152,7 @@ MT.makeId = function () {
 MT.clearSheet = function (sheet, rows, columns) {
   var rowCount = rows || Math.max(sheet.getMaxRows(), MT.DEFAULT_ROW_COUNT);
   var columnCount = columns || Math.max(sheet.getMaxColumns(), MT.DEFAULT_COLUMN_COUNT);
-  sheet.getRange(1, 1, rowCount, columnCount).breakApart().clear({ contentsOnly: false });
+  sheet.getRange(1, 1, rowCount, columnCount).breakApart().clear();
   sheet.setHiddenGridlines(true);
 };
 

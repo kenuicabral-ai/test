@@ -136,13 +136,13 @@ MT.renderRegistration = function () {
   sheet.getRange(MT.REGISTRATION_NAV_CELLS.PREVIOUS).insertCheckboxes().setValue(false);
   sheet.getRange(MT.REGISTRATION_NAV_CELLS.SAVE).insertCheckboxes().setValue(false);
   sheet.getRange(MT.REGISTRATION_NAV_CELLS.NEXT).insertCheckboxes().setValue(false);
-  sheet.getRange('A33:C33').setBackground(MT.COLORS.LIGHT_GRAY);
-  sheet.getRange('C33').setValue('⬅ Anterior').setFontWeight('bold');
-  sheet.getRange('D33:E33').setBackground(MT.COLORS.DARK_BLUE).setFontColor('#ffffff');
-  sheet.getRange('E33').setValue('Salvar').setFontWeight('bold').setFontColor('#ffffff');
-  sheet.getRange('F33').setBackground(MT.COLORS.LIGHT_GRAY);
-  sheet.getRange('A34:F34').merge().setValue('Próximo ➡');
-  MT.styleButton(sheet.getRange('A34:F34'), MT.COLORS.DARK_BLUE, '#ffffff');
+  sheet.getRange('A33:B33').setBackground(MT.COLORS.LIGHT_GRAY);
+  sheet.getRange('B33').setValue('⬅ Anterior').setFontWeight('bold');
+  sheet.getRange('C33:D33').setBackground(MT.COLORS.DARK_BLUE).setFontColor('#ffffff');
+  sheet.getRange('D33').setValue('Salvar').setFontWeight('bold').setFontColor('#ffffff');
+  sheet.getRange('E33:F33').setBackground(MT.COLORS.LIGHT_GRAY);
+  sheet.getRange('F33').setValue('Próximo ➡').setFontWeight('bold');
+  sheet.getRange('A33:F33').setHorizontalAlignment('center');
 
   sheet.getRange('A36:F38').merge().setValue('Edite somente os campos do card. Histórico, cores, dashboards, data, hora e usuário são atualizados automaticamente.');
   MT.styleCard(sheet.getRange('A36:F38'), MT.COLORS.LIGHT_BLUE);

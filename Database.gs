@@ -151,6 +151,10 @@ MT.getBaseTable = function () {
 };
 
 MT.getBaseRecords = function () {
+  if (MT._recordCache) {
+    return MT._recordCache;
+  }
+
   MT.normalizeBaseRows();
 
   var table = MT.getBaseTable();
@@ -170,7 +174,12 @@ MT.getBaseRecords = function () {
     });
   });
 
+  MT._recordCache = records;
   return records;
+};
+
+MT.invalidateRecordCache = function () {
+  MT._recordCache = null;
 };
 
 MT.rowToObject = function (row, headerMap) {
@@ -219,6 +228,7 @@ MT.normalizeBaseRows = function () {
 
   if (changed) {
     table.sheet.getRange(2, 1, table.rows.length, table.headers.length).setValues(table.rows);
+    MT.invalidateRecordCache();
   }
 };
 
@@ -335,6 +345,7 @@ MT.updateRecordFields = function (recordId, changes, user) {
 
   table.sheet.getRange(targetIndex + 2, 1, 1, table.headers.length).setValues([row]);
   MT.appendHistoryRows(history);
+  MT.invalidateRecordCache();
 
   return MT.rowToObject(row, table.headerMap);
 };

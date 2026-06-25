@@ -172,6 +172,7 @@ MT.handleBaseEdit = function (event) {
   row[table.headerMap['Atualizado Em']] = now;
 
   table.sheet.getRange(rowNumber, 1, 1, table.headers.length).setValues([row]);
+  MT.invalidateRecordCache();
 
   var ignoredFields = ['ID', 'Status', 'Prioridade', 'Última Atualização', 'Data Última Atualização', 'Hora Última Atualização', 'Usuário', 'Criado Em', 'Atualizado Em'];
   if (field && ignoredFields.indexOf(field) === -1) {
