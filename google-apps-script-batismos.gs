@@ -167,8 +167,10 @@ function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui
     .createMenu('Batismos')
-    .addItem('Configurar sistema completo', 'setupSistemaBatismos')
+    .addItem('Rodar tudo agora (recomendado)', 'RODAR_TUDO')
+    .addItem('Resetar emails e rodar tudo', 'RESETAR_E_REPROCESSAR_TUDO')
     .addSeparator()
+    .addItem('Configurar sistema completo', 'setupSistemaBatismos')
     .addItem('Ler emails agora', 'processarEmailsBatismo')
     .addItem('Reprocessar emails dos últimos 90 dias', 'reprocessarEmailsBatismo')
     .addItem('Resetar marcador de emails processados', 'resetarEmailsProcessados')
@@ -193,9 +195,75 @@ function onOpen() {
     .addToUi();
 }
 
+function RODAR_TUDO() {
+  executarRotinaCompleta_({
+    resetarEmails: false,
+    instalarGatilhos: true,
+    mostrarAlerta: true
+  });
+}
+
+function RESETAR_E_REPROCESSAR_TUDO() {
+  executarRotinaCompleta_({
+    resetarEmails: true,
+    instalarGatilhos: true,
+    mostrarAlerta: true
+  });
+}
+
 function setupSistemaBatismos() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
+  configurarSistemaBase_(ss);
+  atualizarDashboard();
+  instalarGatilhos();
+
+  notify_('Sistema configurado. As abas, validações, dashboard e gatilhos foram criados.');
+}
+
+function executarRotinaCompleta_(options) {
+  options = options || {};
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var resetCount = 0;
+
+    configurarSistemaBase_(ss);
+
+    if (options.resetarEmails) {
+      resetCount = resetarEmailsProcessados_(false);
+    }
+
+    var createdCount = processarEmailsBatismoComBusca_(EMAIL_SEARCH_QUERY, false, true);
+
+    aplicarValidacoes();
+    atualizarSemanasEStatusVisual_();
+    moverReservadosAutomaticamente_();
+    limparRegistrosAntigos_();
+    atualizarDashboard();
+
+    if (options.instalarGatilhos) {
+      instalarGatilhos();
+    }
+
+    if (options.mostrarAlerta) {
+      notify_([
+        'Rotina completa finalizada.',
+        '',
+        'Emails criados na planilha: ' + createdCount,
+        options.resetarEmails ? 'Marcadores de email resetados: ' + resetCount : '',
+        '',
+        'Dashboard, abas dos LDs, validações e gatilhos foram atualizados.'
+      ].filter(Boolean).join('\n'));
+    }
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function configurarSistemaBase_(ss) {
   configurarAbaAtivas_(ss);
   configurarAbaCaidas_(ss);
   configurarAbaConfig_(ss);
@@ -204,10 +272,6 @@ function setupSistemaBatismos() {
   configurarAbaDashboard_(ss);
 
   aplicarValidacoes();
-  atualizarDashboard();
-  instalarGatilhos();
-
-  notify_('Sistema configurado. As abas, validações, dashboard e gatilhos foram criados.');
 }
 
 function configurarAbaAtivas_(ss) {
@@ -390,12 +454,12 @@ function setValidationFromList_(targetSheet, targetCol, rowCount, values) {
 }
 
 function processarEmailsBatismo() {
-  processarEmailsBatismoComBusca_(EMAIL_SEARCH_QUERY, true);
+  processarEmailsBatismoComBusca_(EMAIL_SEARCH_QUERY, true, false);
 }
 
 function reprocessarEmailsBatismo() {
   var resetCount = resetarEmailsProcessados_(false);
-  processarEmailsBatismoComBusca_(EMAIL_SEARCH_QUERY, true);
+  processarEmailsBatismoComBusca_(EMAIL_SEARCH_QUERY, true, false);
   Logger.log('Marcadores removidos antes do reprocessamento: ' + resetCount);
 }
 
@@ -450,7 +514,7 @@ function diagnosticarEmailsBatismo() {
   notify_(message);
 }
 
-function processarEmailsBatismoComBusca_(searchQuery, showAlert) {
+function processarEmailsBatismoComBusca_(searchQuery, showAlert, skipRefresh) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   ensureSystemExists_(ss);
 
@@ -509,15 +573,18 @@ function processarEmailsBatismoComBusca_(searchQuery, showAlert) {
     }
   });
 
-  aplicarValidacoes();
-  atualizarSemanasEStatusVisual_();
-  moverReservadosAutomaticamente_();
-  limparRegistrosAntigos_();
-  atualizarDashboard();
+  if (!skipRefresh) {
+    aplicarValidacoes();
+    atualizarSemanasEStatusVisual_();
+    moverReservadosAutomaticamente_();
+    limparRegistrosAntigos_();
+    atualizarDashboard();
+  }
 
   if (showAlert) {
     notify_(createdCount + ' registro(s) criado(s) a partir do Gmail.');
   }
+  return createdCount;
 }
 
 function onEdit(e) {

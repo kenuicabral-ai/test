@@ -18,9 +18,33 @@ Este repositório contém um MVP em Google Apps Script para criar automaticament
 3. Copie todo o conteúdo de `google-apps-script-batismos.gs`.
 4. Cole em `Code.gs`.
 5. Salve.
-6. Execute a função `setupSistemaBatismos`.
+6. Execute a função `RODAR_TUDO`.
 7. Autorize as permissões solicitadas.
 8. Volte para a planilha e use o menu **Batismos**.
+
+## Qual função executar no Apps Script
+
+Use somente esta função na maioria das vezes:
+
+```javascript
+RODAR_TUDO
+```
+
+Ela faz tudo em uma execução:
+
+- cria/configura as abas;
+- aplica validações;
+- lê os emails novos;
+- atualiza semanas, cores, Dashboard e abas dos LDs;
+- instala os gatilhos automáticos.
+
+Se você apagou as linhas da planilha e quer puxar de novo os emails antigos, use:
+
+```javascript
+RESETAR_E_REPROCESSAR_TUDO
+```
+
+As outras funções existem para o menu e para automações internas. Normalmente você não precisa rodá-las manualmente.
 
 ## O que o script faz
 
