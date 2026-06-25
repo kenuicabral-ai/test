@@ -1,8 +1,18 @@
 function onOpen(e) {
+  if (mtInstalledMode_()) return;
   mtInitializeMissionTracker();
 }
 
 function onEdit(e) {
+  if (mtInstalledMode_()) return;
+  mtHandleEdit(e);
+}
+
+function mtHandleOpen(e) {
+  mtInitializeMissionTracker();
+}
+
+function mtHandleEdit(e) {
   if (!e || !e.range) return;
   try {
     mtRouteEdit_(e);
@@ -13,6 +23,7 @@ function onEdit(e) {
 
 function setupMissionTracker() {
   mtInitializeMissionTracker();
+  mtInstallTriggers_();
 }
 
 function mtInitializeMissionTracker() {
@@ -97,4 +108,37 @@ function mtSetupSystemSheets_(ss) {
   cache.getRange(1, 1, 1, 2).setValues([['Chave', 'Valor']]);
   mtApplyBaseSheetStyle(cache);
   mtProtectSheet(cache, 'Mission Tracker - cache', true);
+}
+
+function mtInstallTriggers_() {
+  var ss = mtGetSpreadsheet();
+  var handlers = {
+    mtHandleOpen: true,
+    mtHandleEdit: true
+  };
+
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (handlers[trigger.getHandlerFunction()]) {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+
+  ScriptApp.newTrigger('mtHandleOpen')
+    .forSpreadsheet(ss)
+    .onOpen()
+    .create();
+  ScriptApp.newTrigger('mtHandleEdit')
+    .forSpreadsheet(ss)
+    .onEdit()
+    .create();
+
+  PropertiesService.getDocumentProperties().setProperty('missionTracker.installedTriggers', 'true');
+}
+
+function mtInstalledMode_() {
+  try {
+    return PropertiesService.getDocumentProperties().getProperty('missionTracker.installedTriggers') === 'true';
+  } catch (err) {
+    return false;
+  }
 }

@@ -40,7 +40,7 @@ Ocultas:
 1. Crie uma planilha Google Sheets.
 2. Abra Extensões > Apps Script.
 3. Copie os arquivos `.gs` e o manifesto `appsscript.json` para o projeto Apps Script.
-4. Execute manualmente `setupMissionTracker` uma vez para autorizar e montar as abas.
+4. Execute manualmente `setupMissionTracker` uma vez para autorizar, montar as abas e instalar os gatilhos.
 5. Cadastre pesquisadores na aba oculta `Base` usando os cabeçalhos criados.
 
 ## Uso
@@ -53,3 +53,4 @@ Ocultas:
   - Semana 3: Entrevista.
 - Alterações salvam histórico, usuário, data/hora, status, cor e dashboards.
 - No Dashboard Zona, toque no checkbox de qualquer indicador para filtrar os pesquisadores.
+- Os gatilhos instaláveis permitem que Base e Histórico fiquem protegidos enquanto o aplicativo grava as automações.

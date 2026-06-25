@@ -40,8 +40,9 @@ function mtApplyBaseSheetStyle(sheet) {
 }
 
 function mtPrepareAppSheet(sheet) {
+  mtEnsureGrid_(sheet, 200, 12);
   sheet.clear();
-  sheet.getRange('A1:K120').breakApart();
+  sheet.getRange('A1:L200').breakApart();
   sheet.setHiddenGridlines(true);
   sheet.setTabColor(MT_COLORS.BLUE);
   sheet.setFrozenRows(0);
@@ -57,10 +58,10 @@ function mtPrepareAppSheet(sheet) {
   sheet.setColumnWidth(5, 88);
   sheet.setColumnWidth(6, 72);
 
-  for (var row = 1; row <= 60; row++) {
+  for (var row = 1; row <= 200; row++) {
     sheet.setRowHeight(row, 30);
   }
-  sheet.getRange('A1:F60')
+  sheet.getRange('A1:F200')
     .setBackground(MT_COLORS.APP_BG)
     .setFontColor(MT_COLORS.TEXT)
     .setFontFamily('Arial')
@@ -71,6 +72,15 @@ function mtPrepareAppSheet(sheet) {
     sheet.hideColumns(8, 5);
   } catch (err) {
     mtLog('WARN', 'Colors.mtPrepareAppSheet', err.message);
+  }
+}
+
+function mtEnsureGrid_(sheet, rows, columns) {
+  if (sheet.getMaxRows() < rows) {
+    sheet.insertRowsAfter(sheet.getMaxRows(), rows - sheet.getMaxRows());
+  }
+  if (sheet.getMaxColumns() < columns) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), columns - sheet.getMaxColumns());
   }
 }
 
