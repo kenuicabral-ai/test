@@ -104,7 +104,7 @@ function mtRenderRegisterCard(ss) {
     horizontalAlignment: 'center',
     borderColor: MT_COLORS.BLUE
   });
-  mtSetDropdown(sheet, 'B30:E30', MT_RESULT_OPTIONS, record.Resultado || MT_RESULT_OPTIONS[0]);
+  mtSetDropdown(sheet, 'B30', MT_RESULT_OPTIONS, record.Resultado || MT_RESULT_OPTIONS[0]);
 
   mtMergeAndStyle(sheet.getRange('A32:F32'), 'Última atualização: ' + mtFormatLastUpdate(record), {
     background: MT_COLORS.APP_BG,
@@ -186,7 +186,7 @@ function mtSaveCurrentRegistration(options) {
 
   var result = mtSaveRegistrationFromValues(collected.recordId, collected.values);
   if (result.saved && result.changes > 0) {
-    sheet.getRange('A32:F32').setValue('Última atualização: ' + mtFormatLastUpdate({ 'Última Atualização Em': mtNow() }));
+    sheet.getRange('A32').setValue('Última atualização: ' + mtFormatLastUpdate({ 'Última Atualização Em': mtNow() }));
     if (settings.refreshDashboards !== false) {
       mtRefreshAllDashboards(ss);
     }

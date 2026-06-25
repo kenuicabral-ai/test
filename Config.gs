@@ -1,5 +1,6 @@
 function mtSetupConfigSheet(ss) {
   var sheet = mtGetOrCreateSheet(ss, MT_SHEETS.CONFIG);
+  var existing = mtReadConfigValues_(sheet);
   mtPrepareAppSheet(sheet);
 
   mtMergeAndStyle(sheet.getRange('A1:F2'), '⚙ Configuração', {
@@ -25,7 +26,6 @@ function mtSetupConfigSheet(ss) {
     [MT_CONFIG_KEYS.LAST_REFRESH, mtDateTimeStamp(mtNow())]
   ];
 
-  var existing = mtReadConfigValues_(sheet);
   rows = rows.map(function(row) {
     return [row[0], existing[row[0]] === undefined || existing[row[0]] === '' ? row[1] : existing[row[0]]];
   });

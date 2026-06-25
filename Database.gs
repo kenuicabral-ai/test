@@ -8,7 +8,7 @@ function mtSetupDatabase(ss) {
   mtApplyBaseSheetStyle(sheet);
   sheet.setFrozenRows(1);
   sheet.autoResizeColumns(1, MT_BASE_HEADERS.length);
-  mtProtectSheet(sheet, 'Mission Tracker - base única', true);
+  mtProtectSheet(sheet, 'Mission Tracker - base única', false);
   mtRecalculateBaseStatuses(ss);
 }
 
