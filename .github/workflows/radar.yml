@@ -63,12 +63,12 @@ jobs:
         run: python radar.py run 2>&1 | tee logs/3-rodada.log
 
       - name: Gerar ranking com o que foi processado
-        if: always() && steps.run.outcome != 'success'
+        if: ${{ !cancelled() && steps.run.outcome != 'success' }}
         run: |
           [ -f radar.db ] && python radar.py ranking 2>&1 | tee logs/4-ranking.log || true
 
       - name: Enviar no Telegram
-        if: always()
+        if: ${{ !cancelled() }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -76,7 +76,7 @@ jobs:
         run: python ci/notify.py 2>&1 | tee logs/5-telegram.log
 
       - name: Salvar dados (branch "dados")
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           [ -f radar.db ] || { echo "sem banco para salvar"; exit 0; }
           D=$(mktemp -d)
