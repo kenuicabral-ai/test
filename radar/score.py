@@ -142,6 +142,11 @@ def run(con, cfg):
         score = BLEND * forca + (1 - BLEND) * tracao
         if r["alive"] == 0:
             score *= 0.25
+        # Tendência: variação do score contra ~7 dias atrás (precisa de histórico).
+        old = con.execute(
+            """SELECT score FROM snapshots WHERE domain=? AND day <= date('now','localtime','-7 days')
+               ORDER BY day DESC LIMIT 1""", (r["domain"],)).fetchone()
+        trend = round(score - old["score"], 1) if old and old["score"] is not None else None
         parts = {**{k: round(fw[k] * v, 1) for k, v in forca_f.items() if v},
                  **{k: round(tw[k] * v, 1) for k, v in tracao_f.items() if v}}
         if mom and mom > 0:
@@ -150,9 +155,9 @@ def run(con, cfg):
             stage = "nova"
         else:
             stage = "estabelecida"
-        con.execute("""UPDATE domains SET score=?, forca=?, tracao=?, score_parts=?, stage=?,
+        con.execute("""UPDATE domains SET score=?, forca=?, tracao=?, trend=?, score_parts=?, stage=?,
                        cloaked=? WHERE domain=?""",
-                    (round(score, 1), round(forca, 1), round(tracao, 1),
+                    (round(score, 1), round(forca, 1), round(tracao, 1), trend,
                      json.dumps(parts, ensure_ascii=False), stage, cloaked_eff, r["domain"]))
         con.execute("""INSERT OR REPLACE INTO snapshots(domain, day, alive, score, ad_count, urlscan_30d)
                        VALUES(?,?,?,?,?,?)""",
@@ -233,6 +238,7 @@ def offers(con):
             "score": round(min(100, (top["score"] or 0) + bonus), 1),
             "forca": top["forca"],
             "tracao": top["tracao"],
+            "tendencia": top["trend"],
             "estagio": top["stage"],
             "porte": porte,
             "operacao_dominios": op_domains,
