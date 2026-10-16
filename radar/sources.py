@@ -86,20 +86,34 @@ def urlscan_search(query, cfg, max_results=1000):
 
 
 def discover_urlscan(con, cfg):
-    """Enumera páginas que carregam assinaturas de VSL/checkout/rastreamento."""
+    """Enumera páginas que carregam assinaturas de VSL/checkout/rastreamento.
+
+    Cada busca é dividida em janelas de tempo. Sem chave, o urlscan devolve só as 100
+    páginas mais recentes por busca; com janelas, cada uma devolve outras 100. A ordem
+    é janela por janela (todas as assinaturas nos dias recentes primeiro), para que,
+    se a cota acabar, a cobertura dos dias mais recentes esteja completa.
+    """
     new = 0
-    for q in cfg["urlscan_queries"]:
-        res, total = urlscan_search(q, cfg, cfg.get("urlscan_max_per_query", 1000))
-        n0 = new
-        for r in res:
-            page = r.get("page", {})
-            d = norm_domain(page.get("domain") or page.get("url"))
-            if d and add_domain(con, d, "urlscan"):
-                new += 1
-            if d and page.get("ip"):
-                add_link(con, d, "ip", page["ip"])
-        con.commit()
-        log(f"  urlscan [{q}]: {len(res)} resultados (total ~{total}), {new - n0} domínios novos")
+    windows = cfg.get("urlscan_windows") or [[0, 180]]
+    per = cfg.get("urlscan_max_per_query", 1000)
+    for a, b in windows:
+        for q in cfg["urlscan_queries"]:
+            if not urlscan_available():
+                log("  urlscan sem cota; o resto da descoberta fica para a próxima rodada")
+                return new
+            query = f"{q} AND date:>now-{b}d" + (f" AND date:<now-{a}d" if a else "")
+            res, total = urlscan_search(query, cfg, per)
+            n0 = new
+            for r in res:
+                page = r.get("page", {})
+                d = norm_domain(page.get("domain") or page.get("url"))
+                if d and add_domain(con, d, "urlscan"):
+                    new += 1
+                if d and page.get("ip"):
+                    add_link(con, d, "ip", page["ip"])
+            con.commit()
+            log(f"  urlscan [{q} | {a}-{b} dias]: {len(res)} resultados (total ~{total}), "
+                f"{new - n0} domínios novos")
     return new
 
 

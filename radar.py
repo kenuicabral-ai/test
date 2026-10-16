@@ -35,8 +35,9 @@ DEFAULT_CONFIG = {
         "domain:vidalytics.com",
         "domain:utmify.com.br",
     ],
-    "urlscan_since": "now-180d",
+    "urlscan_windows": [[0, 3], [3, 7], [7, 14], [14, 30], [30, 60], [60, 120], [120, 180]],
     "urlscan_max_per_query": 1000,
+    "urlscan_stats_sem_chave": 10,
     "urlscan_interval": 2.0,
     "certstream_url": "wss://certstream.calidog.io/",
     "certstream_patterns": [
@@ -77,10 +78,8 @@ def step(title):
 
 def discover(con, cfg):
     step("Descoberta: urlscan (páginas que carregam player/rastreamento de VSL)")
-    since = cfg.get("urlscan_since")
-    q0 = cfg["urlscan_queries"]
-    cfg = {**cfg, "urlscan_queries": [f"{q} AND date:>{since}" if since else q for q in q0]}
-    sources.discover_urlscan(con, cfg)
+    n = sources.discover_urlscan(con, cfg)
+    print(f"  total: {n} domínios novos pelo urlscan")
     if cfg.get("crtsh_keywords"):
         step("Descoberta: crt.sh (certificados recentes por palavra)")
         sources.crtsh_keyword_discovery(con, cfg)
@@ -100,6 +99,7 @@ def enrich(con, cfg, share=1.0):
     g = cfg.get("_deadline")
     deadline = time.time() + max(0, g - time.time()) * share if g else None
     new = done = 0
+    stats_left = cfg.get("urlscan_stats_sem_chave", 10)
     for i, r in enumerate(rows, 1):
         if deadline and time.time() > deadline:
             print(f"  tempo desta etapa esgotado; {len(rows) - i + 1} ficam para a próxima")
@@ -113,7 +113,9 @@ def enrich(con, cfg, share=1.0):
                 if add_domain(con, sib, "grafo:cert"):
                     new += 1
                 add_link(con, sib, "cert", serial)
-            sources.urlscan_stats(con, d, cfg)
+            if cfg.get("urlscan_api_key") or stats_left > 0:
+                sources.urlscan_stats(con, d, cfg)
+                stats_left -= 1
         except Exception as e:
             print(f"  erro ao enriquecer {d}: {e}")
             continue
