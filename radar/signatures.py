@@ -182,6 +182,16 @@ def valid_product_key(key: str) -> bool:
     return valid_product_segment(seg)
 
 
+def _unescape(s: str) -> str:
+    """Decodifica entidades HTML, inclusive as duplamente codificadas (&amp;#8211;)."""
+    for _ in range(2):
+        new = html_lib.unescape(s)
+        if new == s:
+            break
+        s = new
+    return s.strip()
+
+
 def extract(html: str) -> dict:
     """Extrai sinais de uma página HTML."""
     html = html or ""
@@ -202,9 +212,9 @@ def extract(html: str) -> dict:
         if vals:
             tracking[kind] = vals[:10]
     t = _TITLE_RE.search(html)
-    title = html_lib.unescape(re.sub(r"\s+", " ", t.group(1))).strip()[:200] if t else ""
+    title = _unescape(re.sub(r"\s+", " ", t.group(1)))[:200] if t else ""
     lang = (_LANG_RE.search(html) or [None, ""])[1]
-    text = html_lib.unescape(re.sub(r"\s+", " ", _TAGS_RE.sub(" ", html))).strip()
+    text = _unescape(re.sub(r"\s+", " ", _TAGS_RE.sub(" ", html)))
     return {
         "players": players,
         "checkouts": sorted(checkouts),

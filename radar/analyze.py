@@ -27,14 +27,19 @@ def _fetch(domain, profile, timeout):
     else:
         url = f"https://{domain}/"
         headers = {"User-Agent": BOT_UA}
+    def body(r):
+        if not r.encoding or r.encoding.lower() == "iso-8859-1":
+            r.encoding = r.apparent_encoding or "utf-8"  # evita acentos trocados
+        return r.text[:2_000_000]
+
     try:
         r = net.get(url, headers=headers, timeout=timeout)
-        return r.status_code, r.url, r.text[:2_000_000]
+        return r.status_code, r.url, body(r)
     except Exception:
         if profile == "ad":
             try:  # alguns domínios novos ainda não têm HTTPS válido
                 r = net.get(url.replace("https://", "http://", 1), headers=headers, timeout=timeout)
-                return r.status_code, r.url, r.text[:2_000_000]
+                return r.status_code, r.url, body(r)
             except Exception:
                 pass
         return None, None, ""

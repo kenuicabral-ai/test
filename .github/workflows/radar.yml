@@ -2,7 +2,8 @@ name: Radar de Ofertas
 
 on:
   schedule:
-    - cron: "0 10 * * *"   # todo dia às 07:00 (horário de Brasília)
+    - cron: "0 10 * * *"   # 07:00 (Brasília). O agendador do GitHub é "melhor esforço"
+                            # e às vezes atrasa ou pula; use "Run workflow" se faltar um dia.
   workflow_dispatch:        # botão "Run workflow" para rodar na hora
   push:
     branches: [main]        # roda também quando o código muda
