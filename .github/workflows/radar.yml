@@ -47,6 +47,7 @@ jobs:
           URLSCAN_API_KEY: ${{ secrets.URLSCAN_API_KEY }}
           PUBLICWWW_API_KEY: ${{ secrets.PUBLICWWW_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PROXY_URL: ${{ secrets.PROXY_URL }}
           RADAR_MAX_MINUTES: ${{ vars.RADAR_MAX_MINUTES }}
         run: |
           mkdir -p logs

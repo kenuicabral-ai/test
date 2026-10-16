@@ -12,6 +12,10 @@ Sistema que roda no seu computador e monta um **ranking de ofertas de resposta d
 
 Cloaking vira sinal: o sistema visita cada página **como quem clicou no anúncio** (celular, app do Facebook, `fbclid`) e **como um robô**. Se só a primeira vê VSL/checkout, a página está escondendo algo, e quem esconde está pagando tráfego.
 
+**Nível profissional.** O radar não procura só infoproduto amador: ele detecta **trackers de mídia paga** (RedTrack, Hyros, ClickMagick, Voluum, FunnelFlux, Everflow…) e checkouts internacionais (BuyGoods, ClickBank, Digistore24, SamCart, ThriveCart), e descobre ofertas pelos nativos (Taboola, Outbrain, MGID). Quem usa um tracker desses está um nível acima, e isso pesa no score. O arquivo `operacoes.csv` mostra as operações (o mesmo dono rodando vários funis), que é onde está o dinheiro grande.
+
+**Cloaking por IP e o proxy.** O cloaker abre a página real para um clique de anúncio vindo do Facebook no país-alvo. O que falta no servidor do GitHub é o IP: ele é de datacenter, nos EUA. Com um **proxy residencial** no país da oferta (secret `PROXY_URL`), o perfil "clique de anúncio" passa a abrir a página real dos funis com cloaking por IP/geo — enquanto o perfil robô continua indo direto, então o contraste ainda denuncia o cloaking. Proxies residenciais custam pouco (cobrados por GB). Sem o proxy, o radar ainda vê tudo que não é cloaked por IP; com ele, alcança as operações profissionais que se escondem.
+
 ## Rodar sozinho no GitHub, com resultados no Telegram (sem computador)
 
 O arquivo `.github/workflows/radar.yml` faz o GitHub rodar o radar **todo dia às 07:00** (Brasília) e mandar o resultado para o seu Telegram: top 10, ofertas que entraram no dia, `ranking.html` e `ranking_ofertas.csv`.

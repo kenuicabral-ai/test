@@ -20,7 +20,7 @@ from .db import jl, today
 from .signatures import STRONG_PLAYERS, ad_library_url
 
 FORCA_W = {"checkout": 15, "player_forte": 12, "player": 5, "texto_vsl": 3,
-           "cloaking": 6, "trafego_pago": 10, "operacao": 7}
+           "cloaking": 6, "trafego_pago": 10, "tracker_pro": 9, "operacao": 7}
 TRACAO_W = {"anuncio_idade": 20, "anuncio_video": 6, "anuncio_volume": 8, "anuncio_paginas": 4,
             "trafego_tranco": 10, "varreduras_30d": 8, "varreduras_total": 4,
             "longevidade": 8, "renovacoes_cert": 3, "momento": 10}
@@ -62,6 +62,9 @@ def run(con, cfg):
     adnets = defaultdict(set)
     for r in con.execute("SELECT domain, value FROM links WHERE kind='adnet'"):
         adnets[r["domain"]].add(r["value"])
+    trackers = defaultdict(set)
+    for r in con.execute("SELECT domain, value FROM links WHERE kind='tracker'"):
+        trackers[r["domain"]].add(r["value"])
     cluster_size = defaultdict(int)
     for r in rows:
         if is_offer(r):
@@ -92,6 +95,7 @@ def run(con, cfg):
             "texto_vsl": 1.0 if r["vsl_text"] else 0.0,
             "cloaking": 1.0 if r["cloaked"] else 0.0,
             "trafego_pago": 1.0 if adnets[r["domain"]] else 0.0,
+            "tracker_pro": 1.0 if trackers[r["domain"]] else 0.0,
             "operacao": _cap((cluster_size[r["cluster_id"]] - 1) / 10),
         }
         tracao_f = {
@@ -147,12 +151,16 @@ def offers(con):
     rows = [r for r in con.execute("SELECT * FROM domains WHERE score IS NOT NULL")]
     prod = defaultdict(set)
     adnet = defaultdict(set)
+    trk = defaultdict(set)
     social = defaultdict(dict)
-    for r in con.execute("SELECT domain, kind, value FROM links WHERE kind IN ('product','adnet','social')"):
+    for r in con.execute(
+            "SELECT domain, kind, value FROM links WHERE kind IN ('product','adnet','tracker','social')"):
         if r["kind"] == "product":
             prod[r["domain"]].add(r["value"])
         elif r["kind"] == "adnet":
             adnet[r["domain"]].add(r["value"])
+        elif r["kind"] == "tracker":
+            trk[r["domain"]].add(r["value"])
         else:  # social: "fb:handle", "fb_id:123", "ig:handle", "wa:number"
             k, _, v = r["value"].partition(":")
             social[r["domain"]][k] = v
@@ -183,6 +191,7 @@ def offers(con):
         firsts += [(dt.date.today() - dt.timedelta(days=m["ad_max_days"])).isoformat()
                    for m in members if m["ad_max_days"]]
         nets = sorted({n for m in members for n in adnet[m["domain"]]})
+        trks = sorted({n for m in members for n in trk[m["domain"]]})
         soc = {}
         for m in members:  # junta o anunciante achado em qualquer domínio da oferta
             for k, v in social[m["domain"]].items():
@@ -197,6 +206,7 @@ def offers(con):
             "tracao": top["tracao"],
             "estagio": top["stage"],
             "trafego": ", ".join(nets),
+            "tracker": ", ".join(trks),
             "anunciante": anunciante,
             "biblioteca_anuncios": ad_library_url(soc.get("fb"), soc.get("fb_id"), soc.get("brand")),
             "instagram": f"https://instagram.com/{soc['ig']}" if soc.get("ig") else "",

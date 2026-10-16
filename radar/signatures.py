@@ -40,6 +40,26 @@ CHECKOUT_HOSTS = {
     "clickbank.net": "clickbank",
     "digistore24.com": "digistore24",
     "buygoods.com": "buygoods",
+    # Internacionais / profissionais
+    "samcart.com": "samcart",
+    "thrivecart.com": "thrivecart",
+    "checkout.stripe.com": "stripe",
+    "pay.hub.la": "hubla",
+    "hub.la": "hubla",
+}
+
+# Trackers profissionais de mídia paga. Quem usa um destes está num nível acima do
+# amador: roda campanhas com redirecionador e atribuição dedicados. Forte sinal de escala.
+TRACKERS = {
+    "redtrack": r"redtrack\.io|rtkclickid|\brtkcid\b",
+    "hyros": r"\bhyros\b|t\.hyros\.com",
+    "clickmagick": r"clickmagick\.com|cmclickid",
+    "voluum": r"\bvoluum\b|voluumtrk",
+    "funnelflux": r"funnelflux|flux_tok",
+    "everflow": r"everflow|\befclick\b|ef_transaction_id",
+    "cometly": r"\bcometly\b",
+    "binom": r"\bbinom\b|cpa\.tw",
+    "keitaro": r"keitaro|/click\.php\?cnv_id",
 }
 _SKIP_SEGMENTS = {"", "pt-br", "pt", "en", "es", "login", "static", "assets", "img",
                   "images", "js", "css", "favicon.ico", "privacy", "terms", "signup",
@@ -95,6 +115,10 @@ ADNET_WHERE = {
 
 def ad_networks(html: str) -> list:
     return sorted(n for n, rx in AD_NETWORKS.items() if re.search(rx, html, re.I))
+
+
+def trackers(html: str) -> list:
+    return sorted(n for n, rx in TRACKERS.items() if re.search(rx, html, re.I))
 
 
 # Anunciante: quem roda os anúncios. O pixel da Meta é o ID do pixel, NÃO da página,
@@ -193,6 +217,10 @@ INFRA = {
     "eduzz.com", "perfectpay.com.br", "ticto.com.br", "ticto.app", "lastlink.com",
     "cartpanda.com", "mycartpanda.com", "yampi.com.br", "greenn.com.br", "kirvano.com",
     "payt.com.br", "clickbank.net", "digistore24.com", "buygoods.com",
+    "samcart.com", "thrivecart.com", "stripe.com", "hub.la",
+    "redtrack.io", "hyros.com", "clickmagick.com", "voluum.com", "funnelflux.io",
+    "everflow.io", "cometly.com", "taboola.com", "outbrain.com", "mgid.com",
+    "clickfunnels.com", "systeme.io", "kajabi.com",
     "bit.ly", "linktr.ee", "urlscan.io", "crt.sh", "wordpress.com", "wixsite.com",
 }
 
@@ -298,6 +326,7 @@ def extract(html: str) -> dict:
         "checkout_urls": checkout_urls,
         "tracking": tracking,
         "adnets": ad_networks(html),
+        "trackers": trackers(html),
         "advertiser": advertiser(html),
         "title": title,
         "lang": lang,

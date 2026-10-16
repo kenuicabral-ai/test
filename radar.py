@@ -24,6 +24,7 @@ from radar.db import add_domain, add_link, connect, now, update  # noqa: E402
 DEFAULT_CONFIG = {
     "db": "radar.db",
     "saida": "saida",
+    "proxy": "",  # proxy residencial no país-alvo (abre páginas com cloaking por IP/geo)
     "urlscan_api_key": "",
     "publicwww_api_key": "",
     "anthropic_api_key": "",
@@ -43,6 +44,17 @@ DEFAULT_CONFIG = {
         "domain:pay.clickbank.net",
         "domain:ticto.app",
         "domain:perfectpay.com.br",
+        # Operações profissionais: trackers de mídia paga e checkouts internacionais.
+        "domain:redtrack.io",
+        "domain:t.hyros.com",
+        "domain:clickmagick.com",
+        "domain:samcart.com",
+        "domain:thrivecart.com",
+        "domain:digistore24.com",
+        # Nativos (advertoriais tipo 'CNN/CBS' e portais de notícia falsos).
+        "domain:taboola.com",
+        "domain:outbrain.com",
+        "domain:mgid.com",
     ],
     "urlscan_windows": [[0, 3], [3, 7], [7, 14], [14, 30], [30, 60], [60, 120], [120, 180]],
     "urlscan_max_per_query": 1000,

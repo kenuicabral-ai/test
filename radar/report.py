@@ -13,6 +13,47 @@ DOMAIN_COLS = ["domain", "score", "forca", "tracao", "stage", "alive", "cloaked"
                "final_url", "checkout_urls", "score_parts"]
 
 
+def _operations(con):
+    """Agrupa por operação (cluster): o mesmo dono rodando vários funis.
+
+    Uma operação grande — muitos domínios, trackers profissionais, vários checkouts —
+    é o alvo profissional. Mostra a escala do dono, não de uma oferta isolada.
+    """
+    from collections import defaultdict
+    doms = [r for r in con.execute("SELECT * FROM domains WHERE score IS NOT NULL")]
+    links = defaultdict(lambda: defaultdict(set))
+    for r in con.execute("SELECT domain, kind, value FROM links WHERE kind IN "
+                         "('tracker','adnet','product','social')"):
+        links[r["domain"]][r["kind"]].add(r["value"])
+    g = defaultdict(list)
+    for r in doms:
+        g[r["cluster_id"]].append(r)
+    out = []
+    for cid, members in g.items():
+        if len(members) < 2:  # operação = 2+ domínios ligados
+            continue
+        members.sort(key=lambda r: r["score"] or 0, reverse=True)
+        agg = defaultdict(set)
+        for m in members:
+            for k, vs in links[m["domain"]].items():
+                agg[k] |= vs
+        socials = {v.split(":", 1)[0]: v.split(":", 1)[1] for v in agg["social"] if ":" in v}
+        out.append({
+            "operacao": cid,
+            "dominios": len(members),
+            "dominios_ativos": sum(1 for m in members if m["alive"]),
+            "melhor_score": members[0]["score"],
+            "produtos": len(agg["product"]),
+            "trackers": ", ".join(sorted(agg["tracker"])),
+            "redes_anuncio": ", ".join(sorted(agg["adnet"])),
+            "checkouts": ", ".join(sorted({p.split(":", 1)[0] for p in agg["product"]})),
+            "anunciante": socials.get("fb") and f"fb/{socials['fb']}" or socials.get("ig", ""),
+            "lista_dominios": " | ".join(m["domain"] for m in members[:40]),
+        })
+    out.sort(key=lambda o: o["dominios"], reverse=True)
+    return out
+
+
 def _advertisers(offs):
     """Lista de anunciantes achados, cada um com link para seus anúncios e as ofertas dele.
 
@@ -83,6 +124,10 @@ def run(con, out_dir):
     if advs:
         _write_csv(os.path.join(out_dir, "anunciantes.csv"), list(advs[0].keys()),
                    [list(a.values()) for a in advs])
+    ops = _operations(con)
+    if ops:
+        _write_csv(os.path.join(out_dir, "operacoes.csv"), list(ops[0].keys()),
+                   [list(o.values()) for o in ops])
     stats = {
         "descobertos": con.execute("SELECT COUNT(*) FROM domains").fetchone()[0],
         "analisados": con.execute("SELECT COUNT(*) FROM domains WHERE last_analyzed IS NOT NULL").fetchone()[0],
@@ -104,7 +149,7 @@ def run(con, out_dir):
         f"<td class='n'>{o['tracao'] if o['tracao'] is not None else ''}</td>"
         f"<td class='t'><a href='https://{e(o['dominio_principal'])}'>{e(o['dominio_principal'])}</a>"
         f"<div>{e(o['titulo'][:120])}</div><div class='doms'>{e(o['oferta'])}</div></td>"
-        f"<td>{e(o['estagio'] or '')}</td><td>{e(o['trafego'])}</td>"
+        f"<td>{e(o['estagio'] or '')}</td><td>{e(o['trafego'])}</td><td>{e(o.get('tracker',''))}</td>"
         f"<td>{_adv_cell(o, e)}</td>"
         f"<td>{e(o['checkouts'])}</td><td>{e(o['players'])}</td>"
         f"<td class='n'>{o['dominios_ativos']}/{o['dominios']}</td><td class='n'>{o['anuncios'] or ''}</td>"
@@ -113,9 +158,9 @@ def run(con, out_dir):
         f"<td class='n'>{e(o['visto_desde'])}</td></tr>"
         for i, o in enumerate(offs[:500], 1))
     static_head = "".join(f"<th>{h}</th>" for h in ["#", "Score", "Força", "Tração", "Oferta", "Estágio",
-                                                     "Tráfego", "Anunciante", "Checkout", "Player",
-                                                     "Domínios", "Anúncios", "Vídeo", "Máx. dias",
-                                                     "Varred. 30d", "Tranco", "Desde"])
+                                                     "Tráfego", "Tracker", "Anunciante", "Checkout",
+                                                     "Player", "Domínios", "Anúncios", "Vídeo",
+                                                     "Máx. dias", "Varred. 30d", "Tranco", "Desde"])
     sub = (f"{stats['ofertas']} ofertas · {stats['anunciantes']} anunciantes · "
            f"{stats['descobertos']} domínios descobertos, {stats['analisados']} analisados")
     page = (PAGE.replace("__ROWS__", static).replace("__HEAD__", static_head).replace("__SUB__", e(sub))
@@ -167,7 +212,7 @@ a{color:var(--acc);text-decoration:none}.doms{color:var(--mute);font-size:12px;m
 </main>
 <script>
 const D=__DATA__;
-const COLS=[["#","rank"],["Score","score"],["Força","forca"],["Tração","tracao"],["Oferta","dominio_principal"],["Estágio","estagio"],["Tráfego","trafego"],["Anunciante","anunciante"],["Checkout","checkouts"],["Player","players"],["Domínios","dominios_ativos"],["Anúncios","anuncios"],["Vídeo","anuncios_video"],["Máx. dias","max_dias_anuncio"],["Varred. 30d","varreduras_30d"],["Tranco","melhor_tranco"],["Desde","visto_desde"]];
+const COLS=[["#","rank"],["Score","score"],["Força","forca"],["Tração","tracao"],["Oferta","dominio_principal"],["Estágio","estagio"],["Tráfego","trafego"],["Tracker","tracker"],["Anunciante","anunciante"],["Checkout","checkouts"],["Player","players"],["Domínios","dominios_ativos"],["Anúncios","anuncios"],["Vídeo","anuncios_video"],["Máx. dias","max_dias_anuncio"],["Varred. 30d","varreduras_30d"],["Tranco","melhor_tranco"],["Desde","visto_desde"]];
 D.offers.forEach((o,i)=>o.rank=i+1);
 const s=D.stats;
 document.getElementById('sub').textContent=`${s.ofertas} ofertas · ${s.anunciantes||0} anunciantes · ${s.descobertos} domínios descobertos, ${s.analisados} analisados`;
@@ -187,7 +232,7 @@ document.getElementById('bd').innerHTML=rows.map(o=>`<tr>
 <td class="n">${o.rank}</td><td><span class="sc" style="background:${color(o.score)}">${o.score}</span></td>
 <td class="n">${o.forca??''}</td><td class="n">${o.tracao??''}</td>
 <td class="t"><a href="https://${esc(o.dominio_principal)}" target="_blank" rel="noopener noreferrer">${esc(o.dominio_principal)}</a>${o.cloaking?' <span class="tag">cloaking</span>':''}<div>${esc(o.titulo).slice(0,120)}</div>${o.nicho?`<div class="doms">${esc(o.nicho)} · ${esc(o.promessa)}</div>`:''}${o.dominios>1?`<div class="doms">${esc(o.lista_dominios)}</div>`:''}<div class="doms">${esc(o.oferta)}</div></td>
-<td><span class="tag ${o.estagio}">${o.estagio}</span></td><td>${esc(o.trafego)}</td><td>${o.biblioteca_anuncios?`<a href="${esc(o.biblioteca_anuncios)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'ver anúncios')}</a>`:(o.whatsapp?`<a href="${esc(o.whatsapp)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'whatsapp')}</a>`:esc(o.anunciante||''))}</td><td>${esc(o.checkouts)}</td><td>${esc(o.players)}</td>
+<td><span class="tag ${o.estagio}">${o.estagio}</span></td><td>${esc(o.trafego)}</td><td>${esc(o.tracker||'')}</td><td>${o.biblioteca_anuncios?`<a href="${esc(o.biblioteca_anuncios)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'ver anúncios')}</a>`:(o.whatsapp?`<a href="${esc(o.whatsapp)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'whatsapp')}</a>`:esc(o.anunciante||''))}</td><td>${esc(o.checkouts)}</td><td>${esc(o.players)}</td>
 <td class="n">${o.dominios_ativos}/${o.dominios}</td><td class="n">${o.anuncios||''}</td><td class="n">${o.anuncios_video||''}</td><td class="n">${o.max_dias_anuncio||''}</td><td class="n">${o.varreduras_30d||''}</td><td class="n">${o.melhor_tranco}</td><td class="n">${esc(o.visto_desde)}</td></tr>`).join('')}
 ['q','st','ck'].forEach(id=>document.getElementById(id).addEventListener('input',render));render();
 </script></body></html>"""

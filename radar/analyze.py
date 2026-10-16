@@ -19,7 +19,10 @@ AD_UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605
 BOT_UA = "python-requests/2.32"
 
 
-def _fetch(domain, profile, timeout):
+def _fetch(domain, profile, timeout, proxy=None):
+    # Perfil "ad" imita um clique de anúncio no Facebook (celular, referência do FB,
+    # fbclid). Com um proxy residencial no país-alvo, isso faz o cloaker abrir a
+    # página real, porque é exatamente o visitante que ele quer deixar passar.
     if profile == "ad":
         url = f"https://{domain}/?fbclid=IwAR{secrets.token_urlsafe(24)}&utm_source=facebook&utm_medium=paid"
         headers = {"User-Agent": AD_UA, "Referer": "https://l.facebook.com/",
@@ -27,29 +30,32 @@ def _fetch(domain, profile, timeout):
     else:
         url = f"https://{domain}/"
         headers = {"User-Agent": BOT_UA}
+        proxy = None  # o perfil robô vai sempre direto, para o contraste revelar o cloaking
+
     def body(r):
         if not r.encoding or r.encoding.lower() == "iso-8859-1":
             r.encoding = r.apparent_encoding or "utf-8"  # evita acentos trocados
         return r.text[:2_000_000]
 
     try:
-        r = net.get(url, headers=headers, timeout=timeout)
+        r = net.get(url, headers=headers, timeout=timeout, proxy=proxy)
         return r.status_code, r.url, body(r)
     except Exception:
         if profile == "ad":
             try:  # alguns domínios novos ainda não têm HTTPS válido
-                r = net.get(url.replace("https://", "http://", 1), headers=headers, timeout=timeout)
+                r = net.get(url.replace("https://", "http://", 1), headers=headers,
+                            timeout=timeout, proxy=proxy)
                 return r.status_code, r.url, body(r)
             except Exception:
                 pass
         return None, None, ""
 
 
-def _render(domain, timeout):
+def _render(domain, timeout, proxy=None):
     """Renderiza com Chromium (opcional) para pegar scripts inseridos por JS."""
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
-        b = p.chromium.launch()
+        b = p.chromium.launch(proxy={"server": proxy} if proxy else None)
         ctx = b.new_context(user_agent=AD_UA, locale="pt-BR",
                             viewport={"width": 390, "height": 844}, is_mobile=True,
                             extra_http_headers={"Referer": "https://l.facebook.com/"})
@@ -67,8 +73,9 @@ def _render(domain, timeout):
             b.close()
 
 
-def analyze_one(domain, render=False, timeout=20):
-    status, final, html = _render(domain, timeout) if render else _fetch(domain, "ad", timeout)
+def analyze_one(domain, render=False, timeout=20, proxy=None):
+    status, final, html = (_render(domain, timeout, proxy) if render
+                           else _fetch(domain, "ad", timeout, proxy))
     sig = extract(html)
     bot_status, bot_final, bot_html = _fetch(domain, "bot", timeout)
     bot = extract(bot_html)
@@ -110,6 +117,7 @@ def save(con, res):
     # A página pode ter mudado desde a última análise: troca os IDs pelos atuais.
     con.execute("""DELETE FROM links WHERE domain=? AND kind IN
                    ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','adnet','social')""", (d,))
+    con.execute("DELETE FROM links WHERE domain=? AND kind='tracker'", (d,))
     for kind, vals in s["tracking"].items():
         for v in vals:
             add_link(con, d, kind, v)
@@ -117,6 +125,8 @@ def save(con, res):
         add_link(con, d, "product", p)
     for n in s.get("adnets", []):
         add_link(con, d, "adnet", n)
+    for n in s.get("trackers", []):
+        add_link(con, d, "tracker", n)
     for k, v in s.get("advertiser", {}).items():
         add_link(con, d, "social", f"{k}:{v}")
     if res["ip"]:
@@ -145,10 +155,12 @@ def run(con, cfg, render=False, limit=None, log=print):
     g = cfg.get("_deadline")
     deadline = time.time() + max(0, g - time.time()) * cfg.get("analyze_share", 0.6) if g else None
 
+    proxy = cfg.get("proxy") or None
+
     def job(d):
         if deadline and time.time() > deadline:
             return None  # tempo da rodada esgotado: fica para a próxima
-        return analyze_one(d, render, cfg.get("timeout", 20))
+        return analyze_one(d, render, cfg.get("timeout", 20), proxy)
 
     with ThreadPoolExecutor(workers) as ex:
         futs = {ex.submit(job, d): d for d in todo}

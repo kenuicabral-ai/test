@@ -20,10 +20,12 @@ def _throttle(url, min_interval):
         time.sleep(wait)
 
 
-def get(url, *, headers=None, params=None, timeout=25, allow_redirects=True, min_interval=0.0):
+def get(url, *, headers=None, params=None, timeout=25, allow_redirects=True, min_interval=0.0,
+        proxy=None):
     _throttle(url, min_interval)
+    proxies = {"http": proxy, "https": proxy} if proxy else None
     return requests.get(url, headers=headers, params=params, timeout=timeout,
-                        allow_redirects=allow_redirects)
+                        allow_redirects=allow_redirects, proxies=proxies)
 
 
 def post(url, *, json=None, headers=None, timeout=60):

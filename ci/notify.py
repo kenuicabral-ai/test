@@ -144,7 +144,8 @@ def main():
     stamp = dt.date.today().isoformat()
     for fname, label in (("ranking.html", f"ranking_{stamp}.html"),
                          ("ranking_ofertas.csv", f"ranking_ofertas_{stamp}.csv"),
-                         ("anunciantes.csv", f"anunciantes_{stamp}.csv")):
+                         ("anunciantes.csv", f"anunciantes_{stamp}.csv"),
+                         ("operacoes.csv", f"operacoes_{stamp}.csv")):
         p = os.path.join(ROOT, "saida", fname)
         if os.path.exists(p):
             with open(p, "rb") as f:
