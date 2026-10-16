@@ -89,7 +89,22 @@ python radar.py importar anuncios_2026-10-15.csv
 
 Os domínios de destino entram no sistema, e as idades dos anúncios, a quantidade e os vídeos entram no score. Encurtadores e trackers são seguidos até a página final.
 
-### Juntar com bancos de anúncios (AdHeart, BigSpy, Dropispy, Minea…)
+### Banco de anúncios por API (recomendado): Apify
+
+A API oficial da Meta não serve: ela não devolve a URL de destino de forma confiável e só cobre anúncio comercial na Europa. O que funciona para BR/EUA é o **Apify Facebook Ads Library Scraper**, que roda a Biblioteca e devolve, por API, o destino (`linkUrl`), o anunciante (`pageId`/`pageName`), a data de início e se o anúncio tem vídeo — em qualquer país. É a versão automática da extensão: puxa anúncios reais do lado do servidor, sem você navegar. Pago por uso (a partir de ~US$4 por 1.000 anúncios), com crédito grátis mensal para começar.
+
+Ligar no GitHub:
+1. Crie conta em apify.com, pegue o **API token** (Settings → Integrations).
+2. Em **Settings → Secrets and variables → Actions**: secret `APIFY_TOKEN` = seu token.
+3. Em **Variables** (mesma tela), defina o que puxar:
+   - `APIFY_SEARCHES`: uma busca por linha — um termo (`emagrecer`), um `page_id`, ou uma URL pronta da Biblioteca.
+   - `APIFY_AUTO`: um número N. O radar puxa automaticamente **todos os anúncios dos N anunciantes que ele já achou** (pelo `page_id`). É o ciclo que se fecha sozinho: achou o dono, puxa a operação inteira, os destinos voltam para o radar.
+
+Os anúncios do Apify entram no mesmo score (idade, vídeo, volume) e já trazem o anunciante com link exato da Biblioteca. Sem `APIFY_TOKEN`, nada disso roda e nada é cobrado.
+
+Na mão, sem API: `python radar.py apify` (com `apify_token` no config.json).
+
+### Juntar com outros bancos de anúncios (AdHeart, BigSpy, Dropispy, Minea…)
 
 ```bash
 python radar.py importar-urls export_adheart.csv

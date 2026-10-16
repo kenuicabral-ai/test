@@ -48,6 +48,9 @@ jobs:
           PUBLICWWW_API_KEY: ${{ secrets.PUBLICWWW_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PROXY_URL: ${{ secrets.PROXY_URL }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          APIFY_SEARCHES: ${{ vars.APIFY_SEARCHES }}
+          APIFY_AUTO: ${{ vars.APIFY_AUTO }}
           RADAR_MAX_MINUTES: ${{ vars.RADAR_MAX_MINUTES }}
         run: |
           mkdir -p logs

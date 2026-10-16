@@ -341,9 +341,18 @@ def import_extension_csv(con, path):
             pages = set(filter(None, (r.get("page_names") or "").split(" | ")))
             agg[d] = {"ads": int(r.get("ads") or 0), "video": int(r.get("video_ads") or 0),
                       "max": int(r.get("max_days_running") or 0), "pages": pages}
+    return _apply_ads(con, agg, "anuncios")
+
+
+def _apply_ads(con, agg, source):
+    """Grava dados de anúncio (idade, vídeo, volume) e o anunciante no domínio de destino.
+
+    Compartilhado pela extensão e pelo Apify. fb_ids/fb_names viram o anunciante, com
+    link exato da Biblioteca pelo page_id.
+    """
     new = 0
     for d, a in agg.items():
-        if add_domain(con, d, "anuncios"):
+        if add_domain(con, d, source):
             new += 1
         row = con.execute("SELECT ad_count, ad_video, ad_max_days FROM domains WHERE domain=?",
                           (d,)).fetchone()
@@ -355,8 +364,126 @@ def import_extension_csv(con, path):
                ad_pages=len(a["pages"]))
         for p in a["pages"]:
             add_link(con, d, "adpage", p)
+        for fid in a.get("fb_ids", ()):
+            add_link(con, d, "social", f"fb_id:{fid}")
+        for fn in a.get("fb_names", ()):
+            add_link(con, d, "social", f"brand:{fn}")
     con.commit()
     return new
+
+
+# ------------------------------------------------------------------ Apify (API de anúncios)
+def _ads_library_url(s):
+    """Aceita uma URL pronta da Biblioteca, um page_id, ou {q, country}."""
+    base = "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&media_type=all"
+    if isinstance(s, str):
+        if s.startswith("http"):
+            return s
+        if s.isdigit():
+            return f"{base}&view_all_page_id={s}"
+        s = {"q": s}
+    from urllib.parse import quote
+    country = s.get("country", "BR")
+    if s.get("page_id"):
+        return f"{base}&country={country}&view_all_page_id={s['page_id']}"
+    return f"{base}&country={country}&q={quote(s.get('q', ''))}&search_type=keyword_unordered"
+
+
+def _unwrap_fb(url):
+    """l.facebook.com/l.php?u=<destino> -> destino."""
+    from urllib.parse import parse_qs, unquote, urlparse
+    try:
+        u = urlparse(url)
+    except ValueError:
+        return url
+    if (u.hostname or "").lower() in ("l.facebook.com", "lm.facebook.com") or u.path == "/l.php":
+        q = parse_qs(u.query).get("u")
+        if q:
+            return unquote(q[0])
+    return url
+
+
+def _accum_apify(agg, it):
+    snap = it.get("snapshot") if isinstance(it.get("snapshot"), dict) else {}
+    link = (it.get("linkUrl") or it.get("link") or it.get("url") or it.get("landingUrl")
+            or snap.get("link_url"))
+    d = norm_domain(_unwrap_fb(link) if link else None)
+    if not d:
+        return
+    a = agg.setdefault(d, {"ads": 0, "video": 0, "max": 0, "pages": set(),
+                           "fb_ids": set(), "fb_names": set()})
+    a["ads"] += 1
+    vids = it.get("videos") or it.get("video") or snap.get("videos")
+    if vids or (it.get("displayFormat") or "").lower() in ("video", "dco_video"):
+        a["video"] += 1
+    start = it.get("startDate") or it.get("start_date") or it.get("startDateFormatted") \
+        or it.get("ad_delivery_start_time")
+    days = _ad_age_days(start)
+    if days is not None:
+        a["max"] = max(a["max"], days)
+    pid, pname = it.get("pageId") or it.get("page_id"), it.get("pageName") or it.get("page_name")
+    if pname:
+        a["pages"].add(pname)
+        a["fb_names"].add(str(pname)[:80])
+    if pid and str(pid).isdigit():
+        a["fb_ids"].add(str(pid))
+
+
+def _ad_age_days(start):
+    if start in (None, ""):
+        return None
+    try:  # epoch (segundos)
+        n = int(float(start))
+        if n > 10_000_000:
+            return max(0, (dt.date.today() - dt.date.fromtimestamp(n)).days)
+    except (TypeError, ValueError):
+        pass
+    try:  # ISO 'YYYY-MM-DD...'
+        return max(0, (dt.date.today() - dt.date.fromisoformat(str(start)[:10])).days)
+    except ValueError:
+        return None
+
+
+def apify_fetch(con, cfg):
+    """Puxa anúncios reais (destino, idade, anunciante) via Apify. Opcional e pago."""
+    token = cfg.get("apify_token")
+    searches = list(cfg.get("apify_searches") or [])
+    # Puxa automaticamente todos os anúncios dos anunciantes que já achamos (page_id):
+    # é o ciclo que se fecha sozinho — achou o dono, puxa a operação inteira dele.
+    auto = cfg.get("apify_auto_advertisers", 0)
+    if token and auto:
+        ids = [r["value"].split(":", 1)[1] for r in con.execute(
+            "SELECT DISTINCT value FROM links WHERE kind='social' AND value LIKE 'fb_id:%' LIMIT ?",
+            (auto,))]
+        searches += [{"page_id": i} for i in ids]
+    if not token or not searches:
+        return 0
+    actor = (cfg.get("apify_actor") or "apify/facebook-ads-scraper").replace("/", "~")
+    limit = cfg.get("apify_limit", 200)
+    endpoint = f"https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items?token={token}"
+    agg = {}
+    for s in searches:
+        url = _ads_library_url(s)
+        payload = {"startUrls": [{"url": url}], "urls": [url], "count": limit,
+                   "resultsLimit": limit, "maxItems": limit, "activeStatus": "active"}
+        try:
+            r = net.post(endpoint, json=payload, timeout=cfg.get("apify_timeout", 600))
+        except Exception as e:
+            log(f"  apify falhou ({s}): {e}")
+            continue
+        if r.status_code not in (200, 201):
+            log(f"  apify {r.status_code}: {r.text[:200]}")
+            continue
+        try:
+            items = r.json()
+        except ValueError:
+            continue
+        n = len(agg)
+        for it in (items or []):
+            if isinstance(it, dict):
+                _accum_apify(agg, it)
+        log(f"  apify [{url[:60]}...]: {len(items or [])} anúncios, {len(agg) - n} destinos novos")
+    return _apply_ads(con, agg, "apify")
 
 
 def import_seeds(con, path, source="manual"):

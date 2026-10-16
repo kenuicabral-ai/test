@@ -28,6 +28,11 @@ DEFAULT_CONFIG = {
     "urlscan_api_key": "",
     "publicwww_api_key": "",
     "anthropic_api_key": "",
+    "apify_token": "",  # API de anúncios (traz destino, idade e anunciante); pago por uso
+    "apify_actor": "apify/facebook-ads-scraper",
+    "apify_searches": [],  # URLs da Biblioteca, page_ids, ou {q, country}
+    "apify_auto_advertisers": 0,  # puxa os anúncios dos N anunciantes já achados
+    "apify_limit": 200,
     "anthropic_model": "claude-haiku-5-5",
     "urlscan_queries": [
         # Players de VSL (o funil carrega o player).
@@ -108,6 +113,9 @@ def discover(con, cfg):
     if os.path.exists(seeds):
         n = sources.import_seeds(con, seeds)
         print(f"  sementes.txt: {n} domínios novos")
+    if cfg.get("apify_token") and (cfg.get("apify_searches") or cfg.get("apify_auto_advertisers")):
+        step("Descoberta: Apify (anúncios reais com destino, idade e anunciante)")
+        print(f"  {sources.apify_fetch(con, cfg)} destinos novos pela API de anúncios")
 
 
 def enrich(con, cfg, share=1.0):
@@ -232,6 +240,7 @@ def main():
     i.add_argument("arquivos", nargs="+")
     u = sub.add_parser("importar-urls", help="importa URLs/domínios de qualquer export de ad-spy")
     u.add_argument("arquivos", nargs="+")
+    sub.add_parser("apify", help="puxa anúncios reais pela API do Apify (precisa de apify_token)")
     s = sub.add_parser("sementes", help="importa lista de domínios (um por linha)")
     s.add_argument("arquivo")
     c = sub.add_parser("certstream", help="escuta certificados novos (contínuo)")
@@ -273,6 +282,8 @@ def main():
     elif args.cmd == "importar-urls":
         for f in args.arquivos:
             print(f"{f}: {sources.import_urls(con, f)} domínios novos")
+    elif args.cmd == "apify":
+        print(f"{sources.apify_fetch(con, cfg)} destinos novos pela API de anúncios")
     elif args.cmd == "sementes":
         print(f"{sources.import_seeds(con, args.arquivo)} domínios novos")
     elif args.cmd == "certstream":

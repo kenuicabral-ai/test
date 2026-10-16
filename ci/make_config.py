@@ -11,6 +11,10 @@ cfg.update({
     "publicwww_api_key": os.environ.get("PUBLICWWW_API_KEY", ""),
     "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY", ""),
     "proxy": os.environ.get("PROXY_URL", ""),
+    "apify_token": os.environ.get("APIFY_TOKEN", ""),
+    # APIFY_SEARCHES: uma busca por linha (URL da Biblioteca, page_id ou termo).
+    "apify_searches": [s.strip() for s in os.environ.get("APIFY_SEARCHES", "").splitlines() if s.strip()],
+    "apify_auto_advertisers": int(os.environ.get("APIFY_AUTO") or 0),
     "workers": 24,
     "max_minutes": int(os.environ.get("RADAR_MAX_MINUTES") or 50),
     # Sem chave do urlscan, cada busca traz no máximo 100 resultados.
@@ -22,6 +26,6 @@ with open(path, "w", encoding="utf-8") as f:
     json.dump(cfg, f, indent=2, ensure_ascii=False)
 
 print("Configuração da rodada:")
-for k in ("urlscan_api_key", "publicwww_api_key", "anthropic_api_key", "proxy"):
+for k in ("urlscan_api_key", "publicwww_api_key", "anthropic_api_key", "proxy", "apify_token"):
     print(f"  {k}: {'configurada' if cfg[k] else 'não configurada'}")
 print(f"  tempo máximo da rodada: {cfg['max_minutes']} min, {cfg['workers']} análises em paralelo")
