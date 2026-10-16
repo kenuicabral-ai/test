@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: radar
-  cancel-in-progress: false
+  cancel-in-progress: true   # uma rodada nova substitui a anterior (os dados já coletados são salvos)
 
 jobs:
   radar:
