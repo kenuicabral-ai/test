@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+config.json
+radar.db
+radar.db.gz
+tranco.zip
+saida/
+telegram_chat_id.txt
+*.log
