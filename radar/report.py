@@ -227,29 +227,39 @@ document.getElementById('kpis').innerHTML=[["Ofertas",s.ofertas],["Novas (≤30d
 const cks=[...new Set(D.offers.flatMap(o=>o.checkouts?o.checkouts.split(', '):[]))].sort();
 document.getElementById('ck').innerHTML+=cks.map(c=>`<option>${esc(c)}</option>`).join('');
 let sortK='score',dir=-1;
-const sel=new Set();  // domínios marcados, mantidos entre filtros/ordenação
+const sel=new Set();  // ofertas marcadas (pela chave), mantidas entre filtros/ordenação
+let copyOffset=0;  // posição do lote de 7 na cópia
+const byKey={};D.offers.forEach(o=>{byKey[o.oferta]=o});
+function domsOf(o){return (o.lista_dominios||o.dominio_principal||'').split(' | ').map(x=>x.trim()).filter(Boolean)}
+function selectedDomains(){return [...new Set([...sel].flatMap(k=>byKey[k]?domsOf(byKey[k]):[]))]}
 function esc(v){return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function color(x){return x>=60?'var(--hot)':x>=40?'var(--warm)':x>=20?'var(--acc)':'var(--mute)'}
-function updateCopy(){document.getElementById('copydoms').textContent=`Copiar domínios (${sel.size})`}
+function updateCopy(){const n=selectedDomains().length;document.getElementById('copydoms').textContent=`Copiar domínios (${sel.size} ofertas · ${n} domínios)`}
 function head(){document.getElementById('hd').innerHTML='<th><input type="checkbox" id="selall" title="marcar os visíveis"></th>'+COLS.map(([l,k])=>`<th data-k="${k}">${l}${k===sortK?(dir<0?' ▼':' ▲'):''}</th>`).join('');
 document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;dir=k===sortK?-dir:-1;sortK=k;render()});
-document.getElementById('selall').onclick=e=>{document.querySelectorAll('.selbox').forEach(b=>{b.checked=e.target.checked;b.checked?sel.add(b.dataset.d):sel.delete(b.dataset.d)});updateCopy()}}
+document.getElementById('selall').onclick=e=>{document.querySelectorAll('.selbox').forEach(b=>{b.checked=e.target.checked;b.checked?sel.add(b.dataset.d):sel.delete(b.dataset.d)});copyOffset=0;updateCopy()}}
 function render(){head();const q=document.getElementById('q').value.toLowerCase(),st=document.getElementById('st').value,pt=document.getElementById('pt').value,ck=document.getElementById('ck').value;
 let rows=D.offers.filter(o=>(!st||o.estagio===st)&&(!pt||o.porte===pt)&&(!ck||(o.checkouts||'').split(', ').includes(ck))&&(!q||JSON.stringify(o).toLowerCase().includes(q)));
 rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(sortK==='melhor_tranco'){x=x||1e9;y=y||1e9}return (x>y?1:x<y?-1:0)*dir});
 document.getElementById('bd').innerHTML=rows.map(o=>`<tr>
-<td><input type="checkbox" class="selbox" data-d="${esc(o.dominio_principal)}"${sel.has(o.dominio_principal)?' checked':''}></td>
+<td><input type="checkbox" class="selbox" data-d="${esc(o.oferta)}"${sel.has(o.oferta)?' checked':''}></td>
 <td class="n">${o.rank}</td><td><span class="sc" style="background:${color(o.score)}">${o.score}</span></td>
 <td class="n">${o.forca??''}</td><td class="n">${o.tracao??''}</td>
 <td class="t"><a href="https://${esc(o.dominio_principal)}" target="_blank" rel="noopener noreferrer">${esc(o.dominio_principal)}</a>${o.cloaking?' <span class="tag">cloaking</span>':''}<div>${esc(o.titulo).slice(0,120)}</div>${o.nicho?`<div class="doms">${esc(o.nicho)} · ${esc(o.promessa)}</div>`:''}${o.dominios>1?`<div class="doms">${esc(o.lista_dominios)}</div>`:''}<div class="doms">${esc(o.oferta)}</div></td>
 <td><span class="tag ${o.estagio}">${o.estagio}</span></td><td>${o.porte==='grande'?`<b>${esc(o.porte)}</b>`:esc(o.porte||'')}</td><td>${esc(o.trafego)}</td><td>${esc(o.tracker||'')}</td><td>${o.biblioteca_anuncios?`<a href="${esc(o.biblioteca_anuncios)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'ver anúncios')}</a>`:(o.whatsapp?`<a href="${esc(o.whatsapp)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'whatsapp')}</a>`:esc(o.anunciante||''))}</td><td>${esc(o.checkouts)}</td><td>${esc(o.players)}</td>
 <td class="n">${o.dominios_ativos}/${o.dominios}</td><td class="n">${o.anuncios||''}</td><td class="n">${o.anuncios_video||''}</td><td class="n">${o.max_dias_anuncio||''}</td><td class="n">${o.varreduras_30d||''}</td><td class="n">${o.melhor_tranco}</td><td class="n">${esc(o.visto_desde)}</td></tr>`).join('')}
-document.getElementById('bd').onchange=e=>{if(e.target.classList.contains('selbox')){e.target.checked?sel.add(e.target.dataset.d):sel.delete(e.target.dataset.d);updateCopy()}};
+document.getElementById('bd').onchange=e=>{if(e.target.classList.contains('selbox')){e.target.checked?sel.add(e.target.dataset.d):sel.delete(e.target.dataset.d);copyOffset=0;updateCopy()}};
 document.getElementById('copydoms').onclick=async()=>{
-  const list=[...sel].join(', ');
-  if(!list){alert('Marque as ofertas que você quer pesquisar na ferramenta de ad-spy.');return}
-  try{await navigator.clipboard.writeText(list);}catch(e){prompt('Copie os domínios:',list);}
-  const b=document.getElementById('copydoms');b.textContent=`Copiado! (${sel.size})`;setTimeout(updateCopy,1500);
+  const doms=selectedDomains();
+  if(!doms.length){alert('Marque as ofertas que você quer pesquisar na ferramenta de ad-spy.');return}
+  if(copyOffset>=doms.length)copyOffset=0;
+  const part=doms.slice(copyOffset,copyOffset+7);
+  const list=part.join(';');  // BigSpy separa palavras por ponto e vírgula
+  try{await navigator.clipboard.writeText(list);}catch(e){prompt('Copie (cole no BigSpy):',list);}
+  const from=copyOffset+1,to=copyOffset+part.length;copyOffset+=7;
+  const b=document.getElementById('copydoms');
+  b.textContent=doms.length>7?`Copiado ${from}–${to} de ${doms.length} · clique p/ próximos`:`Copiado! (${part.length})`;
+  setTimeout(updateCopy,2500);
 };
 ['q','st','pt','ck'].forEach(id=>document.getElementById(id).addEventListener('input',render));render();
 </script></body></html>"""
