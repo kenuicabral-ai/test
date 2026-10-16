@@ -166,9 +166,12 @@ def certstream_listen(con, cfg, limit=None):
         raise SystemExit("Instale: pip install websocket-client")
     pat = re.compile("|".join(cfg["certstream_patterns"]), re.I)
     tlds = tuple(cfg.get("certstream_tlds") or ())
-    seen = {"n": 0}
+    seen = {"n": 0, "msgs": 0}
 
     def on_message(ws, msg):
+        seen["msgs"] += 1
+        if seen["msgs"] % 20000 == 0:
+            log(f"  {seen['msgs']} certificados vistos, {seen['n']} domínios guardados")
         try:
             data = json.loads(msg)
         except ValueError:
@@ -186,14 +189,22 @@ def certstream_listen(con, cfg, limit=None):
                 if limit and seen["n"] >= limit:
                     ws.close()
 
+    import time
     log(f"Conectando a {cfg['certstream_url']} (Ctrl+C para parar)...")
+    failures = 0
     while True:
-        ws = websocket.WebSocketApp(cfg["certstream_url"], on_message=on_message)
+        before = seen["msgs"]
+        ws = websocket.WebSocketApp(
+            cfg["certstream_url"], on_message=on_message,
+            on_error=lambda ws, e: log(f"  erro no Certstream: {e}"))
         ws.run_forever(ping_interval=30, ping_timeout=10)
         if limit and seen["n"] >= limit:
             return
+        failures = 0 if seen["msgs"] > before else failures + 1
+        if failures >= 3:
+            log("  Certstream não respondeu em 3 tentativas; servidor provavelmente fora do ar. Pulando.")
+            return
         log("  conexão caiu; reconectando em 5s")
-        import time
         time.sleep(5)
 
 

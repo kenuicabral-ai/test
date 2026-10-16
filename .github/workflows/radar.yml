@@ -18,6 +18,8 @@ jobs:
   radar:
     runs-on: ubuntu-latest
     timeout-minutes: 75
+    env:
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -46,22 +48,23 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           RADAR_MAX_MINUTES: ${{ vars.RADAR_MAX_MINUTES }}
         run: |
+          mkdir -p logs
           python radar.py init
-          python ci/make_config.py
+          python ci/make_config.py 2>&1 | tee logs/1-config.log
 
       - name: Ofertas nascendo (Certstream, 10 min)
         continue-on-error: true
-        run: timeout 10m python radar.py certstream || true
+        run: timeout 10m python radar.py certstream 2>&1 | tee logs/2-certstream.log || true
 
       - name: Rodada completa
         id: run
         timeout-minutes: 55
-        run: python radar.py run
+        run: python radar.py run 2>&1 | tee logs/3-rodada.log
 
       - name: Gerar ranking com o que foi processado
         if: always() && steps.run.outcome != 'success'
         run: |
-          [ -f radar.db ] && python radar.py ranking || true
+          [ -f radar.db ] && python radar.py ranking 2>&1 | tee logs/4-ranking.log || true
 
       - name: Enviar no Telegram
         if: always()
@@ -69,7 +72,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           RADAR_STATUS: ${{ steps.run.outcome }}
-        run: python ci/notify.py
+        run: python ci/notify.py 2>&1 | tee logs/5-telegram.log
 
       - name: Salvar dados (branch "dados")
         if: always()
@@ -79,6 +82,7 @@ jobs:
           gzip -c radar.db > "$D/radar.db.gz"
           cp -r saida "$D/" 2>/dev/null || true
           cp telegram_chat_id.txt "$D/" 2>/dev/null || true
+          cp -r logs "$D/" 2>/dev/null || true
           printf '# Resultados do Radar\n\nÚltima rodada: %s\n\n- [Ranking de ofertas](saida/ranking_ofertas.csv)\n- [Ranking de domínios](saida/ranking_dominios.csv)\n' "$(date -u '+%Y-%m-%d %H:%M UTC')" > "$D/README.md"
           cd "$D"
           git init -q -b dados
