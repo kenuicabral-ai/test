@@ -25,6 +25,15 @@ def log(*a):
     print(*a, flush=True)
 
 
+# Freios: quando um serviço limita o acesso ou cai, para de chamá-lo nesta rodada
+# em vez de gastar o tempo esperando. O que faltou fica para a próxima rodada.
+BREAKER = {"urlscan": False, "crtsh_fail": 0, "crtsh_kw_fail": 0}
+
+
+def urlscan_available():
+    return not BREAKER["urlscan"]
+
+
 # ------------------------------------------------------------------ urlscan
 def urlscan_search(query, cfg, max_results=1000):
     """Pagina a busca do urlscan. Retorna (resultados, total_estimado)."""
@@ -32,6 +41,8 @@ def urlscan_search(query, cfg, max_results=1000):
     if cfg.get("urlscan_api_key"):
         headers["API-Key"] = cfg["urlscan_api_key"]
     out, total, after, retries = [], 0, None, 0
+    if BREAKER["urlscan"]:
+        return out, total
     while len(out) < max_results:
         params = {"q": query, "size": min(100, max_results - len(out))}
         if after:
@@ -42,18 +53,19 @@ def urlscan_search(query, cfg, max_results=1000):
         except Exception as e:
             log(f"  urlscan falhou: {e}")
             break
-        if r.status_code == 429 and retries < 3:
+        if r.status_code == 429:
             import time
             try:
-                wait = float(r.headers.get("X-Rate-Limit-Reset-After") or 30)
+                wait = float(r.headers.get("X-Rate-Limit-Reset-After") or 61)
             except (TypeError, ValueError, AttributeError):
-                wait = 30
-            retries += 1
-            log(f"  urlscan: limite por minuto; aguardando {min(wait, 90):.0f}s")
-            time.sleep(min(wait, 90) + 1)
-            continue
-        if r.status_code == 429:
-            log("  urlscan: limite diário atingido; o resto fica para a próxima rodada.")
+                wait = 61
+            if wait <= 70 and retries < 1:
+                retries += 1
+                log(f"  urlscan: limite por minuto; aguardando {wait:.0f}s")
+                time.sleep(wait + 1)
+                continue
+            BREAKER["urlscan"] = True
+            log("  urlscan: cota esgotada; consultas ao urlscan pausadas até a próxima rodada.")
             break
         if r.status_code != 200:
             log(f"  urlscan {r.status_code}: {r.text[:150]}")
@@ -93,7 +105,11 @@ def discover_urlscan(con, cfg):
 
 def urlscan_stats(con, domain, cfg):
     """Quantas varreduras o domínio teve (proxy de visitas reais) e quando."""
+    if not urlscan_available():
+        return
     res, total = urlscan_search(f'page.domain:"{domain}"', cfg, 100)
+    if not urlscan_available():
+        return  # cota acabou: não grava zero, tenta na próxima rodada
     if not res:
         update(con, domain, urlscan_total=0, urlscan_30d=0)
         return
@@ -114,6 +130,8 @@ def urlscan_domains_for(query, cfg, max_results=300):
 
 # ------------------------------------------------------------------ crt.sh
 def crtsh(domain, cfg):
+    if BREAKER["crtsh_fail"] >= 3:
+        return []
     for q in ("%." + domain, domain):
         try:
             r = net.get(f"https://crt.sh/?q={quote(q)}&output=json", headers={"User-Agent": UA},
@@ -121,10 +139,14 @@ def crtsh(domain, cfg):
         except Exception:
             continue
         if r.status_code == 200:
+            BREAKER["crtsh_fail"] = 0
             try:
                 return r.json()
             except ValueError:
                 return []
+    BREAKER["crtsh_fail"] += 1
+    if BREAKER["crtsh_fail"] == 3:
+        log("  crt.sh: 3 falhas seguidas; consultas ao crt.sh pausadas nesta rodada.")
     return []
 
 
@@ -213,14 +235,19 @@ def crtsh_keyword_discovery(con, cfg):
     new = 0
     since = (dt.date.today() - dt.timedelta(days=cfg.get("crtsh_days", 7))).isoformat()
     for kw in cfg.get("crtsh_keywords", []):
+        if BREAKER["crtsh_kw_fail"] >= 2:
+            log("  crt.sh fora do ar; busca por palavra pulada.")
+            break
         try:
             r = net.get(f"https://crt.sh/?q={quote('%' + kw + '%')}&output=json&exclude=expired",
                         headers={"User-Agent": UA}, timeout=120, min_interval=3)
         except Exception as e:
             log(f"  crt.sh [{kw}]: {type(e).__name__} (crt.sh costuma ficar lento; tenta amanhã)")
+            BREAKER["crtsh_kw_fail"] += 1
             continue
         if r.status_code != 200:
             log(f"  crt.sh [{kw}]: HTTP {r.status_code}")
+            BREAKER["crtsh_kw_fail"] += 1
             continue
         try:
             rows = r.json()

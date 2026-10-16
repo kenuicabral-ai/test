@@ -11,7 +11,7 @@ cfg.update({
     "publicwww_api_key": os.environ.get("PUBLICWWW_API_KEY", ""),
     "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY", ""),
     "workers": 24,
-    "max_minutes": int(os.environ.get("RADAR_MAX_MINUTES") or 40),
+    "max_minutes": int(os.environ.get("RADAR_MAX_MINUTES") or 50),
     # Sem chave do urlscan, cada busca traz no máximo 100 resultados.
     "urlscan_max_per_query": 1000 if os.environ.get("URLSCAN_API_KEY") else 100,
     # Ofertas nascendo: certificados dos últimos 7 dias com estas palavras no nome.

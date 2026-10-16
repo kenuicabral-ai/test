@@ -52,7 +52,8 @@ DEFAULT_CONFIG = {
     "reanalyze_hours": 24,
     "enrich_days": 7,
     "rounds": 2,
-    "ip_max_domains_urlscan": 40,
+    "ip_max_domains_urlscan": 15,
+    "ip_expand_max": 25,
     "link_max_degree": 40,
     "max_minutes": 0,
     "weights": {},
@@ -89,17 +90,22 @@ def discover(con, cfg):
         print(f"  sementes.txt: {n} domínios novos")
 
 
-def enrich(con, cfg):
+def enrich(con, cfg, share=1.0):
     step("Enriquecimento: idade (certificados), varreduras (urlscan), irmãos de certificado")
     cutoff = (dt.datetime.now() - dt.timedelta(days=cfg["enrich_days"])).isoformat()
     rows = [r for r in con.execute(
         "SELECT * FROM domains ORDER BY last_enriched IS NOT NULL, COALESCE(score, 0) DESC")
         if is_offer(r) and (not r["last_enriched"] or r["last_enriched"] < cutoff)]
     print(f"  {len(rows)} ofertas para enriquecer")
-    new = 0
+    g = cfg.get("_deadline")
+    deadline = time.time() + max(0, g - time.time()) * share if g else None
+    new = done = 0
     for i, r in enumerate(rows, 1):
-        if cfg.get("_deadline") and time.time() > cfg["_deadline"]:
-            print(f"  tempo da rodada esgotado; {len(rows) - i + 1} ficam para a próxima")
+        if deadline and time.time() > deadline:
+            print(f"  tempo desta etapa esgotado; {len(rows) - i + 1} ficam para a próxima")
+            break
+        if not sources.urlscan_available() and sources.BREAKER["crtsh_fail"] >= 3:
+            print(f"  urlscan e crt.sh indisponíveis; {len(rows) - i + 1} ficam para a próxima")
             break
         d = r["domain"]
         try:
@@ -111,24 +117,41 @@ def enrich(con, cfg):
         except Exception as e:
             print(f"  erro ao enriquecer {d}: {e}")
             continue
-        update(con, d, last_enriched=now())
+        if sources.urlscan_available() and sources.BREAKER["crtsh_fail"] < 3:
+            update(con, d, last_enriched=now())  # só marca se as duas fontes responderam
+            done += 1
         if i % 20 == 0:
             con.commit()
             print(f"  {i}/{len(rows)}")
     con.commit()
-    print(f"  domínios-irmãos novos via certificado: {new}")
+    print(f"  enriquecidas: {done}; domínios-irmãos novos via certificado: {new}")
+
+
+def tranco(con, cfg):
     step("Tráfego: ranking Tranco")
     doms = [r["domain"] for r in con.execute("SELECT domain FROM domains")]
     try:
         ranks = sources.tranco_ranks(doms, os.path.join(os.path.dirname(cfg["db"]), "tranco.zip"))
     except Exception as e:
         print(f"  Tranco falhou: {e}")
-        ranks = {}
+        return
     con.execute("UPDATE domains SET tranco_rank=NULL")
     for d, rk in ranks.items():
         update(con, d, tranco_rank=rk)
     con.commit()
     print(f"  {len(ranks)} domínios no top 1M")
+
+
+def cleanup_links(con):
+    """Remove chaves de produto geradas por regras antigas (ex.: 'buygoods:secure')."""
+    from radar.signatures import valid_product_key
+    bad = [r["value"] for r in con.execute("SELECT DISTINCT value FROM links WHERE kind='product'")
+           if not valid_product_key(r["value"])]
+    for v in bad:
+        con.execute("DELETE FROM links WHERE kind='product' AND value=?", (v,))
+    if bad:
+        con.commit()
+        print(f"  {len(bad)} chaves de produto genéricas removidas")
 
 
 def finish(con, cfg, do_classify=True):
@@ -144,20 +167,22 @@ def finish(con, cfg, do_classify=True):
 
 
 def cmd_run(con, cfg, args):
+    cleanup_links(con)
     if not args.sem_descoberta:
         discover(con, cfg)
     step("Análise das páginas")
     analyze.run(con, cfg, render=args.render, limit=args.limite)
+    enrich(con, cfg, share=0.5)  # idade e varreduras das ofertas (metade do tempo restante)
     for i in range(cfg["rounds"]):
         step(f"Expansão em grafo (rodada {i + 1}/{cfg['rounds']})")
         if not expand.run(con, cfg):
             break
         step("Análise dos domínios novos")
         analyze.run(con, cfg, render=args.render, limit=args.limite)
-    enrich(con, cfg)
-    step("Análise dos irmãos de certificado")
+    step("Análise do que ficou na fila (irmãos de certificado, expansão)")
     if analyze.run(con, cfg, render=args.render, limit=args.limite):
         enrich(con, cfg)  # só processa os que ainda não foram enriquecidos
+    tranco(con, cfg)
     path = finish(con, cfg)
     print(f"\nPronto. Abra {path}")
 
@@ -211,6 +236,7 @@ def main():
         expand.run(con, cfg)
     elif args.cmd == "enriquecer":
         enrich(con, cfg)
+        tranco(con, cfg)
     elif args.cmd == "ranking":
         finish(con, cfg, do_classify=False)
     elif args.cmd == "classificar":

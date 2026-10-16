@@ -102,6 +102,9 @@ def save(con, res):
            players=s["players"], checkouts=s["checkouts"], checkout_urls=s["checkout_urls"],
            text_sample=s["text"], vsl_text=int(s["vsl_text"]), cloaked=int(res["cloaked"]),
            ip=res["ip"])
+    # A página pode ter mudado desde a última análise: troca os IDs pelos atuais.
+    con.execute("""DELETE FROM links WHERE domain=? AND kind IN
+                   ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify')""", (d,))
     for kind, vals in s["tracking"].items():
         for v in vals:
             add_link(con, d, kind, v)

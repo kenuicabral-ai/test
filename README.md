@@ -27,7 +27,9 @@ Secrets do repositório (**Settings → Secrets and variables → Actions**):
 
 - **Rodar na hora:** aba **Actions → Radar de Ofertas → Run workflow**.
 - **Ver os dados no GitHub:** branch `dados`, arquivo `saida/ranking_ofertas.csv` (o GitHub mostra como tabela).
-- **Tempo por rodada:** cerca de 1 hora (40 min de radar + 10 min de Certstream + preparação). Isso cabe nos 2.000 minutos mensais gratuitos de um repositório privado. Para mudar, crie a variável `RADAR_MAX_MINUTES` em **Settings → Secrets and variables → Actions → Variables**.
+- **Tempo por rodada:** cerca de 55 minutos (50 de radar + preparação). Em repositório público os minutos do GitHub Actions são ilimitados; em privado, cabem nos 2.000 minutos mensais gratuitos. Para mudar, crie a variável `RADAR_MAX_MINUTES` em **Settings → Secrets and variables → Actions → Variables**.
+- **Freios automáticos:** se o urlscan esgotar a cota ou o crt.sh cair, o radar para de consultá-los naquela rodada e continua com o resto. O que faltou é retomado no dia seguinte.
+- **Certstream:** o servidor público não enviou certificados nos testes, então ele não roda no GitHub. As ofertas novas entram pelo urlscan (que também pega páginas recém-criadas) e pela busca no crt.sh. O comando `certstream` continua disponível para rodar num computador.
 - **Domínios que não couberam no dia** ficam na fila e são processados nas próximas rodadas. O banco é salvo na branch `dados` ao fim de cada rodada.
 - **Limite:** os servidores do GitHub usam IP de datacenter, e cloaking que bloqueia esses IPs esconde a página do radar. Os sinais de infraestrutura (urlscan, certificados, Tranco) continuam funcionando.
 

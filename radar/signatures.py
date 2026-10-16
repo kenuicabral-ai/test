@@ -41,7 +41,16 @@ CHECKOUT_HOSTS = {
     "buygoods.com": "buygoods",
 }
 _SKIP_SEGMENTS = {"", "pt-br", "pt", "en", "es", "login", "static", "assets", "img",
-                  "images", "js", "css", "favicon.ico", "privacy", "terms", "signup"}
+                  "images", "js", "css", "favicon.ico", "privacy", "terms", "signup",
+                  "secure", "track", "tracking", "affiliates", "affiliate", "checkout", "order",
+                  "pay", "cart", "buy", "go", "redir", "api", "v1", "v2", "widget", "embed",
+                  "scripts", "cdn", "cartx-ecomm-ui-asset", "public", "app", "conversion"}
+
+
+def valid_product_segment(seg: str) -> bool:
+    """Um trecho de URL que identifica produto (não arquivo, não pasta genérica)."""
+    return (bool(seg) and len(seg) >= 4 and "." not in seg and "asset" not in seg.lower()
+            and seg.lower() not in _SKIP_SEGMENTS)
 
 # IDs de rastreamento: o que liga domínios da mesma operação.
 TRACKING = {
@@ -88,20 +97,54 @@ def is_infra(domain: str) -> bool:
 
 
 def _checkout_of(url: str):
-    from urllib.parse import urlparse
+    """(plataforma, chave do produto ou do produtor) de um link de checkout."""
+    from urllib.parse import parse_qs, urlparse
     try:
         u = urlparse(url)
     except ValueError:
         return None
     host = (u.hostname or "").lower()
     for base, plat in CHECKOUT_HOSTS.items():
-        if host == base or host.endswith("." + base):
-            seg = u.path.strip("/").split("/")[0] if u.path else ""
-            product = None
-            if seg.lower() not in _SKIP_SEGMENTS and len(seg) >= 4:
-                product = f"{plat}:{seg}"
-            return plat, product
+        if not (host == base or host.endswith("." + base)):
+            continue
+        q = parse_qs(u.query)
+
+        def first(*keys):
+            for k in keys:
+                if q.get(k) and q[k][0].strip():
+                    return q[k][0].strip()
+            return None
+
+        product = None
+        if plat == "buygoods":  # buygoods.com/secure/checkout.html?account_id=12994&product_codename=...
+            acc = first("account_id", "a")
+            product = f"buygoods:{acc}" if acc and acc.isdigit() else None
+        elif plat == "clickbank":  # VENDOR.pay.clickbank.net / VENDOR.hop.clickbank.net
+            labels = host.split(".")
+            if len(labels) >= 4 and labels[-3] in ("hop", "pay"):
+                product = f"clickbank:{labels[0]}"
+            elif first("vendor"):
+                product = f"clickbank:{first('vendor')}"
+        elif plat == "digistore24":  # digistore24.com/product/12345 ou /redir/12345/...
+            nums = [s for s in u.path.split("/") if s.isdigit()]
+            product = f"digistore24:{nums[0]}" if nums else None
+        if not product:
+            for seg in [s for s in u.path.split("/") if s][:2]:
+                if valid_product_segment(seg):
+                    product = f"{plat}:{re.sub(r':\d+$', '', seg)}"  # tira sufixo de variante
+                    break
+        return plat, product
     return None
+
+
+def valid_product_key(key: str) -> bool:
+    """Filtra chaves antigas geradas antes das regras atuais (ex.: 'buygoods:secure')."""
+    plat, _, seg = key.partition(":")
+    if plat in ("buygoods", "digistore24"):
+        return seg.isdigit()
+    if plat == "clickbank":
+        return bool(seg) and seg.lower() not in _SKIP_SEGMENTS and "." not in seg
+    return valid_product_segment(seg)
 
 
 def extract(html: str) -> dict:
