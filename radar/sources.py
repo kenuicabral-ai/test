@@ -96,21 +96,29 @@ def discover_urlscan(con, cfg):
     new = 0
     windows = cfg.get("urlscan_windows") or [[0, 180]]
     per = cfg.get("urlscan_max_per_query", 1000)
+    from .signatures import SEED_SIGNAL
     for a, b in windows:
         for q in cfg["urlscan_queries"]:
             if not urlscan_available():
                 log("  urlscan sem cota; o resto da descoberta fica para a próxima rodada")
                 return new
+            # O que esta busca prova sobre a página (o urlscan viu o recurso carregar).
+            seed_dom = q.split(":", 1)[1].strip() if q.startswith("domain:") else ""
+            seen = SEED_SIGNAL.get(seed_dom)
             query = f"{q} AND date:>now-{b}d" + (f" AND date:<now-{a}d" if a else "")
             res, total = urlscan_search(query, cfg, per)
             n0 = new
             for r in res:
                 page = r.get("page", {})
                 d = norm_domain(page.get("domain") or page.get("url"))
-                if d and add_domain(con, d, "urlscan"):
+                if not d:
+                    continue
+                if add_domain(con, d, "urlscan"):
                     new += 1
-                if d and page.get("ip"):
+                if page.get("ip"):
                     add_link(con, d, "ip", page["ip"])
+                if seen:  # testemunha do urlscan: "esta página carregou X"
+                    add_link(con, d, "seen", f"{seen[0]}:{seen[1]}")
             con.commit()
             log(f"  urlscan [{q} | {a}-{b} dias]: {len(res)} resultados (total ~{total}), "
                 f"{new - n0} domínios novos")
@@ -358,6 +366,31 @@ def import_seeds(con, path, source="manual"):
             line = line.strip()
             if line and not line.startswith("#") and add_domain(con, line, source):
                 new += 1
+    con.commit()
+    return new
+
+
+_ANY_URL = re.compile(r"https?://[^\s\"',;]+", re.I)
+
+
+def import_urls(con, path, source="adspy"):
+    """Importa qualquer export com URLs/domínios de destino (AdHeart, BigSpy, etc.).
+
+    Lê o arquivo inteiro (CSV, TSV, txt — qualquer formato), extrai todas as URLs e
+    também domínios soltos, e joga os destinos no radar. Encurtadores/trackers viram
+    o próprio domínio deles agora e são resolvidos até o destino final na análise.
+    """
+    with open(path, encoding="utf-8", errors="ignore") as f:
+        text = f.read()
+    cands = set(_ANY_URL.findall(text))
+    for tok in re.split(r"[\s\"',;|]+", text):  # domínios soltos sem http
+        if "." in tok and "/" not in tok and not tok.startswith("@"):
+            cands.add(tok)
+    new = 0
+    for c in cands:
+        d = norm_domain(c)
+        if d and add_domain(con, d, source):
+            new += 1
     con.commit()
     return new
 

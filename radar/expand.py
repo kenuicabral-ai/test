@@ -7,7 +7,7 @@
 import ipaddress
 import time
 
-from .analyze import is_offer
+from .analyze import is_offer, refresh_seen
 from .db import add_domain, today
 from .sources import log, publicwww_domains, urlscan_available, urlscan_domains_for
 
@@ -37,6 +37,7 @@ def is_cdn(ip: str) -> bool:
 
 
 def run(con, cfg):
+    refresh_seen(con)
     offers = {r["domain"] for r in con.execute("SELECT * FROM domains") if is_offer(r)}
     if not offers:
         log("  nenhuma oferta ainda para expandir")

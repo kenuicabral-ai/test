@@ -15,12 +15,12 @@ import json
 import math
 from collections import defaultdict
 
-from .analyze import is_offer
+from .analyze import is_offer, refresh_seen
 from .db import jl, today
 from .signatures import STRONG_PLAYERS, ad_library_url
 
 FORCA_W = {"checkout": 15, "player_forte": 12, "player": 5, "texto_vsl": 3,
-           "cloaking": 6, "trafego_pago": 10, "tracker_pro": 9, "operacao": 7}
+           "cloaking": 6, "trafego_pago": 10, "omnichannel": 5, "tracker_pro": 9, "operacao": 9}
 TRACAO_W = {"anuncio_idade": 20, "anuncio_video": 6, "anuncio_volume": 8, "anuncio_paginas": 4,
             "trafego_tranco": 10, "varreduras_30d": 8, "varreduras_total": 4,
             "longevidade": 8, "renovacoes_cert": 3, "momento": 10}
@@ -65,6 +65,13 @@ def run(con, cfg):
     trackers = defaultdict(set)
     for r in con.execute("SELECT domain, value FROM links WHERE kind='tracker'"):
         trackers[r["domain"]].add(r["value"])
+    # Testemunha do urlscan: o que a página carregou, mesmo que ela nos mostre a isca.
+    refresh_seen(con)
+    seen = defaultdict(lambda: {"player": set(), "checkout": set(), "tracker": set()})
+    for r in con.execute("SELECT domain, value FROM links WHERE kind='seen'"):
+        k, _, v = r["value"].partition(":")
+        if k in ("player", "checkout", "tracker"):
+            seen[r["domain"]][k].add(v)
     cluster_size = defaultdict(int)
     for r in rows:
         if is_offer(r):
@@ -88,15 +95,25 @@ def run(con, cfg):
             age = max(age, r["ad_max_days"])
         mom = _momentum(con, r["domain"], r)
 
+        sv = seen[r["domain"]]
+        has_checkout = bool(jl(r["checkouts"]) or sv["checkout"])
+        all_players = players | sv["player"]
+        has_tracker = bool(trackers[r["domain"]] or sv["tracker"])
+        # Cloaking contra nós: o urlscan viu player/checkout, a nossa leitura não.
+        suspeito = bool((sv["player"] or sv["checkout"]) and not (players or jl(r["checkouts"])))
+        cloaked_eff = 1 if (r["cloaked"] or suspeito) else 0
+
         forca_f = {
-            "checkout": 1.0 if jl(r["checkouts"]) else 0.0,
-            "player_forte": 1.0 if players & STRONG_PLAYERS else 0.0,
-            "player": 1.0 if players else 0.0,
+            "checkout": 1.0 if has_checkout else 0.0,
+            "player_forte": 1.0 if all_players & STRONG_PLAYERS else 0.0,
+            "player": 1.0 if all_players else 0.0,
             "texto_vsl": 1.0 if r["vsl_text"] else 0.0,
-            "cloaking": 1.0 if r["cloaked"] else 0.0,
+            "cloaking": 1.0 if cloaked_eff else 0.0,
             "trafego_pago": 1.0 if adnets[r["domain"]] else 0.0,
-            "tracker_pro": 1.0 if trackers[r["domain"]] else 0.0,
-            "operacao": _cap((cluster_size[r["cluster_id"]] - 1) / 10),
+            # Omnichannel: rodar em várias redes ao mesmo tempo = orçamento grande.
+            "omnichannel": _cap((len(adnets[r["domain"]]) - 1) / 2),
+            "tracker_pro": 1.0 if has_tracker else 0.0,
+            "operacao": _cap((cluster_size[r["cluster_id"]] - 1) / 8),
         }
         tracao_f = {
             "anuncio_idade": _cap((r["ad_max_days"] or 0) / 90),
@@ -133,10 +150,10 @@ def run(con, cfg):
             stage = "nova"
         else:
             stage = "estabelecida"
-        con.execute("""UPDATE domains SET score=?, forca=?, tracao=?, score_parts=?, stage=?
-                       WHERE domain=?""",
+        con.execute("""UPDATE domains SET score=?, forca=?, tracao=?, score_parts=?, stage=?,
+                       cloaked=? WHERE domain=?""",
                     (round(score, 1), round(forca, 1), round(tracao, 1),
-                     json.dumps(parts, ensure_ascii=False), stage, r["domain"]))
+                     json.dumps(parts, ensure_ascii=False), stage, cloaked_eff, r["domain"]))
         con.execute("""INSERT OR REPLACE INTO snapshots(domain, day, alive, score, ad_count, urlscan_30d)
                        VALUES(?,?,?,?,?,?)""",
                     (r["domain"], today(), r["alive"], round(score, 1), r["ad_count"], r["urlscan_30d"]))
@@ -149,6 +166,9 @@ def run(con, cfg):
 def offers(con):
     """Agrupa domínios em ofertas: mesmo produto no checkout, senão mesma operação."""
     rows = [r for r in con.execute("SELECT * FROM domains WHERE score IS NOT NULL")]
+    cluster_count = defaultdict(int)  # domínios-oferta por operação
+    for r in rows:
+        cluster_count[r["cluster_id"]] += 1
     prod = defaultdict(set)
     adnet = defaultdict(set)
     trk = defaultdict(set)
@@ -199,12 +219,23 @@ def offers(con):
         anunciante = (f"fb/{soc['fb']}" if soc.get("fb") else
                       f"ig/{soc['ig']}" if soc.get("ig") else
                       soc.get("brand") or (f"wa/{soc['wa']}" if soc.get("wa") else ""))
+        # Porte: quanto a oferta "cheira" a operação grande. Soma sinais de escala.
+        op_domains = cluster_count[top["cluster_id"]]
+        vdesde = min((f for f in firsts if f), default="")
+        age_days = (dt.date.today() - dt.date.fromisoformat(vdesde)).days if vdesde else 0
+        big = (int(op_domains >= 3) + int(op_domains >= 8) + int(bool(trks))
+               + int(len(nets) >= 2) + int(age_days >= 90)
+               + int((top["urlscan_30d"] or 0) >= 20)
+               + int((top["ad_max_days"] or 0) >= 60))
+        porte = "grande" if big >= 3 else "média" if big >= 1 else "pequena"
         out.append({
             "oferta": key,
             "score": round(min(100, (top["score"] or 0) + bonus), 1),
             "forca": top["forca"],
             "tracao": top["tracao"],
             "estagio": top["stage"],
+            "porte": porte,
+            "operacao_dominios": op_domains,
             "trafego": ", ".join(nets),
             "tracker": ", ".join(trks),
             "anunciante": anunciante,

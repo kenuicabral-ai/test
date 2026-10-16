@@ -149,7 +149,8 @@ def run(con, out_dir):
         f"<td class='n'>{o['tracao'] if o['tracao'] is not None else ''}</td>"
         f"<td class='t'><a href='https://{e(o['dominio_principal'])}'>{e(o['dominio_principal'])}</a>"
         f"<div>{e(o['titulo'][:120])}</div><div class='doms'>{e(o['oferta'])}</div></td>"
-        f"<td>{e(o['estagio'] or '')}</td><td>{e(o['trafego'])}</td><td>{e(o.get('tracker',''))}</td>"
+        f"<td>{e(o['estagio'] or '')}</td><td>{e(o.get('porte',''))}</td>"
+        f"<td>{e(o['trafego'])}</td><td>{e(o.get('tracker',''))}</td>"
         f"<td>{_adv_cell(o, e)}</td>"
         f"<td>{e(o['checkouts'])}</td><td>{e(o['players'])}</td>"
         f"<td class='n'>{o['dominios_ativos']}/{o['dominios']}</td><td class='n'>{o['anuncios'] or ''}</td>"
@@ -158,9 +159,10 @@ def run(con, out_dir):
         f"<td class='n'>{e(o['visto_desde'])}</td></tr>"
         for i, o in enumerate(offs[:500], 1))
     static_head = "".join(f"<th>{h}</th>" for h in ["#", "Score", "Força", "Tração", "Oferta", "Estágio",
-                                                     "Tráfego", "Tracker", "Anunciante", "Checkout",
-                                                     "Player", "Domínios", "Anúncios", "Vídeo",
-                                                     "Máx. dias", "Varred. 30d", "Tranco", "Desde"])
+                                                     "Porte", "Tráfego", "Tracker", "Anunciante",
+                                                     "Checkout", "Player", "Domínios", "Anúncios",
+                                                     "Vídeo", "Máx. dias", "Varred. 30d", "Tranco",
+                                                     "Desde"])
     sub = (f"{stats['ofertas']} ofertas · {stats['anunciantes']} anunciantes · "
            f"{stats['descobertos']} domínios descobertos, {stats['analisados']} analisados")
     page = (PAGE.replace("__ROWS__", static).replace("__HEAD__", static_head).replace("__SUB__", e(sub))
@@ -206,13 +208,14 @@ a{color:var(--acc);text-decoration:none}.doms{color:var(--mute);font-size:12px;m
 <div class="bar">
 <input id="q" placeholder="Filtrar por domínio, título, nicho, checkout...">
 <select id="st"><option value="">Todos os estágios</option><option>nova</option><option>crescendo</option><option>estabelecida</option></select>
+<select id="pt"><option value="">Qualquer porte</option><option>grande</option><option>média</option><option>pequena</option></select>
 <select id="ck"><option value="">Qualquer checkout</option></select>
 </div>
 <div class="wrap"><table><thead><tr id="hd">__HEAD__</tr></thead><tbody id="bd">__ROWS__</tbody></table></div>
 </main>
 <script>
 const D=__DATA__;
-const COLS=[["#","rank"],["Score","score"],["Força","forca"],["Tração","tracao"],["Oferta","dominio_principal"],["Estágio","estagio"],["Tráfego","trafego"],["Tracker","tracker"],["Anunciante","anunciante"],["Checkout","checkouts"],["Player","players"],["Domínios","dominios_ativos"],["Anúncios","anuncios"],["Vídeo","anuncios_video"],["Máx. dias","max_dias_anuncio"],["Varred. 30d","varreduras_30d"],["Tranco","melhor_tranco"],["Desde","visto_desde"]];
+const COLS=[["#","rank"],["Score","score"],["Força","forca"],["Tração","tracao"],["Oferta","dominio_principal"],["Estágio","estagio"],["Porte","porte"],["Tráfego","trafego"],["Tracker","tracker"],["Anunciante","anunciante"],["Checkout","checkouts"],["Player","players"],["Domínios","dominios_ativos"],["Anúncios","anuncios"],["Vídeo","anuncios_video"],["Máx. dias","max_dias_anuncio"],["Varred. 30d","varreduras_30d"],["Tranco","melhor_tranco"],["Desde","visto_desde"]];
 D.offers.forEach((o,i)=>o.rank=i+1);
 const s=D.stats;
 document.getElementById('sub').textContent=`${s.ofertas} ofertas · ${s.anunciantes||0} anunciantes · ${s.descobertos} domínios descobertos, ${s.analisados} analisados`;
@@ -225,14 +228,14 @@ function esc(v){return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt
 function color(x){return x>=60?'var(--hot)':x>=40?'var(--warm)':x>=20?'var(--acc)':'var(--mute)'}
 function head(){document.getElementById('hd').innerHTML=COLS.map(([l,k])=>`<th data-k="${k}">${l}${k===sortK?(dir<0?' ▼':' ▲'):''}</th>`).join('');
 document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;dir=k===sortK?-dir:-1;sortK=k;render()})}
-function render(){head();const q=document.getElementById('q').value.toLowerCase(),st=document.getElementById('st').value,ck=document.getElementById('ck').value;
-let rows=D.offers.filter(o=>(!st||o.estagio===st)&&(!ck||(o.checkouts||'').split(', ').includes(ck))&&(!q||JSON.stringify(o).toLowerCase().includes(q)));
+function render(){head();const q=document.getElementById('q').value.toLowerCase(),st=document.getElementById('st').value,pt=document.getElementById('pt').value,ck=document.getElementById('ck').value;
+let rows=D.offers.filter(o=>(!st||o.estagio===st)&&(!pt||o.porte===pt)&&(!ck||(o.checkouts||'').split(', ').includes(ck))&&(!q||JSON.stringify(o).toLowerCase().includes(q)));
 rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(sortK==='melhor_tranco'){x=x||1e9;y=y||1e9}return (x>y?1:x<y?-1:0)*dir});
 document.getElementById('bd').innerHTML=rows.map(o=>`<tr>
 <td class="n">${o.rank}</td><td><span class="sc" style="background:${color(o.score)}">${o.score}</span></td>
 <td class="n">${o.forca??''}</td><td class="n">${o.tracao??''}</td>
 <td class="t"><a href="https://${esc(o.dominio_principal)}" target="_blank" rel="noopener noreferrer">${esc(o.dominio_principal)}</a>${o.cloaking?' <span class="tag">cloaking</span>':''}<div>${esc(o.titulo).slice(0,120)}</div>${o.nicho?`<div class="doms">${esc(o.nicho)} · ${esc(o.promessa)}</div>`:''}${o.dominios>1?`<div class="doms">${esc(o.lista_dominios)}</div>`:''}<div class="doms">${esc(o.oferta)}</div></td>
-<td><span class="tag ${o.estagio}">${o.estagio}</span></td><td>${esc(o.trafego)}</td><td>${esc(o.tracker||'')}</td><td>${o.biblioteca_anuncios?`<a href="${esc(o.biblioteca_anuncios)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'ver anúncios')}</a>`:(o.whatsapp?`<a href="${esc(o.whatsapp)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'whatsapp')}</a>`:esc(o.anunciante||''))}</td><td>${esc(o.checkouts)}</td><td>${esc(o.players)}</td>
+<td><span class="tag ${o.estagio}">${o.estagio}</span></td><td>${o.porte==='grande'?`<b>${esc(o.porte)}</b>`:esc(o.porte||'')}</td><td>${esc(o.trafego)}</td><td>${esc(o.tracker||'')}</td><td>${o.biblioteca_anuncios?`<a href="${esc(o.biblioteca_anuncios)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'ver anúncios')}</a>`:(o.whatsapp?`<a href="${esc(o.whatsapp)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'whatsapp')}</a>`:esc(o.anunciante||''))}</td><td>${esc(o.checkouts)}</td><td>${esc(o.players)}</td>
 <td class="n">${o.dominios_ativos}/${o.dominios}</td><td class="n">${o.anuncios||''}</td><td class="n">${o.anuncios_video||''}</td><td class="n">${o.max_dias_anuncio||''}</td><td class="n">${o.varreduras_30d||''}</td><td class="n">${o.melhor_tranco}</td><td class="n">${esc(o.visto_desde)}</td></tr>`).join('')}
-['q','st','ck'].forEach(id=>document.getElementById(id).addEventListener('input',render));render();
+['q','st','pt','ck'].forEach(id=>document.getElementById(id).addEventListener('input',render));render();
 </script></body></html>"""

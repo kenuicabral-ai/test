@@ -14,6 +14,8 @@ Cloaking vira sinal: o sistema visita cada página **como quem clicou no anúnci
 
 **Nível profissional.** O radar não procura só infoproduto amador: ele detecta **trackers de mídia paga** (RedTrack, Hyros, ClickMagick, Voluum, FunnelFlux, Everflow…) e checkouts internacionais (BuyGoods, ClickBank, Digistore24, SamCart, ThriveCart), e descobre ofertas pelos nativos (Taboola, Outbrain, MGID). Quem usa um tracker desses está um nível acima, e isso pesa no score. O arquivo `operacoes.csv` mostra as operações (o mesmo dono rodando vários funis), que é onde está o dinheiro grande.
 
+**Testemunha do urlscan (para não perder oferta cloaked sem proxy).** Quando o radar abre uma página do servidor do GitHub (IP de datacenter), um funil com cloaking por IP mostra a isca, sem player nem checkout — e some do ranking. Mas o urlscan já tinha visto a página real quando a descobrimos (foi o que a trouxe). O radar guarda essa testemunha: "o urlscan viu esta página carregar VTurb / Hotmart / RedTrack". Com isso a oferta entra e pontua mesmo que a nossa leitura caia na isca, e o contraste (urlscan viu, nós não) vira um sinal extra de cloaking. O proxy depois melhora de "sabemos que é oferta" para "conseguimos ler a página inteira".
+
 **Cloaking por IP e o proxy.** O cloaker abre a página real para um clique de anúncio vindo do Facebook no país-alvo. O que falta no servidor do GitHub é o IP: ele é de datacenter, nos EUA. Com um **proxy residencial** no país da oferta (secret `PROXY_URL`), o perfil "clique de anúncio" passa a abrir a página real dos funis com cloaking por IP/geo — enquanto o perfil robô continua indo direto, então o contraste ainda denuncia o cloaking. Proxies residenciais custam pouco (cobrados por GB). Sem o proxy, o radar ainda vê tudo que não é cloaked por IP; com ele, alcança as operações profissionais que se escondem.
 
 ## Rodar sozinho no GitHub, com resultados no Telegram (sem computador)
@@ -86,6 +88,14 @@ python radar.py importar anuncios_2026-10-15.csv
 ```
 
 Os domínios de destino entram no sistema, e as idades dos anúncios, a quantidade e os vídeos entram no score. Encurtadores e trackers são seguidos até a página final.
+
+### Juntar com bancos de anúncios (AdHeart, BigSpy, Dropispy, Minea…)
+
+```bash
+python radar.py importar-urls export_adheart.csv
+```
+
+Exporte (ou copie) as URLs de destino de qualquer ferramenta de espionagem e jogue aqui. O comando lê o arquivo em qualquer formato, extrai todos os domínios de destino e põe no radar — que então escaneia cada um por IP, certificado, pixel e operação, do mesmo jeito que os outros. Assim você aproveita o banco deles e ele vira combustível para o seu. Se a ferramenta tiver API, dá para automatizar o download antes desse comando.
 
 ### Sementes manuais
 

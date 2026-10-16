@@ -186,9 +186,26 @@ def run(con, cfg, render=False, limit=None, log=print):
     return done
 
 
+# Domínios que o urlscan testemunhou carregando player/checkout/tracker, mesmo que a
+# nossa leitura tenha caído no cloaking. Preenchido por refresh_seen() antes de pontuar.
+SEEN_OFFERS = set()
+
+
+def refresh_seen(con):
+    SEEN_OFFERS.clear()
+    for r in con.execute("SELECT DISTINCT domain FROM links WHERE kind='seen' AND "
+                         "(value LIKE 'player:%' OR value LIKE 'checkout:%' OR value LIKE 'tracker:%')"):
+        SEEN_OFFERS.add(r["domain"])
+
+
 def is_offer(row):
-    """Critério mínimo para entrar no ranking: VSL forte ou checkout de infoproduto."""
+    """Entra no ranking: VSL/checkout na nossa leitura, anúncio, ou testemunha do urlscan.
+
+    A testemunha do urlscan é o que impede uma grande oferta com cloaking de sumir só
+    porque ela nos mostrou a página isca.
+    """
     from .db import jl
     players = set(jl(row["players"]))
     return bool(jl(row["checkouts"]) or players & STRONG_PLAYERS or
-                (players and row["vsl_text"]) or (row["ad_count"] or 0) > 0)
+                (players and row["vsl_text"]) or (row["ad_count"] or 0) > 0 or
+                row["domain"] in SEEN_OFFERS)

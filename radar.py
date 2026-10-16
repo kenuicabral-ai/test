@@ -193,6 +193,7 @@ def cmd_run(con, cfg, args):
     cleanup_links(con)
     if not args.sem_descoberta:
         discover(con, cfg)
+    analyze.refresh_seen(con)  # testemunhas do urlscan contam como oferta daqui para frente
     step("Análise das páginas")
     analyze.run(con, cfg, render=args.render, limit=args.limite)
     enrich(con, cfg, share=0.5)  # idade e varreduras das ofertas (metade do tempo restante)
@@ -229,6 +230,8 @@ def main():
     sub.add_parser("classificar", help="classifica com a API da Claude")
     i = sub.add_parser("importar", help="importa CSV da extensão")
     i.add_argument("arquivos", nargs="+")
+    u = sub.add_parser("importar-urls", help="importa URLs/domínios de qualquer export de ad-spy")
+    u.add_argument("arquivos", nargs="+")
     s = sub.add_parser("sementes", help="importa lista de domínios (um por linha)")
     s.add_argument("arquivo")
     c = sub.add_parser("certstream", help="escuta certificados novos (contínuo)")
@@ -267,6 +270,9 @@ def main():
     elif args.cmd == "importar":
         for f in args.arquivos:
             print(f"{f}: {sources.import_extension_csv(con, f)} domínios novos")
+    elif args.cmd == "importar-urls":
+        for f in args.arquivos:
+            print(f"{f}: {sources.import_urls(con, f)} domínios novos")
     elif args.cmd == "sementes":
         print(f"{sources.import_seeds(con, args.arquivo)} domínios novos")
     elif args.cmd == "certstream":

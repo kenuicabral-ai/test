@@ -113,6 +113,24 @@ ADNET_WHERE = {
 }
 
 
+# O que cada busca de descoberta no urlscan PROVA sobre a página (o urlscan viu esse
+# recurso carregar). Serve de testemunha quando a nossa própria leitura cai no cloaking.
+SEED_SIGNAL = {
+    "converteai.net": ("player", "vturb"), "vturb.com.br": ("player", "vturb"),
+    "pandavideo.com.br": ("player", "panda"), "vidalytics.com": ("player", "vidalytics"),
+    "utmify.com.br": ("tracker", "utmify"),
+    "pay.hotmart.com": ("checkout", "hotmart"), "pay.kiwify.com.br": ("checkout", "kiwify"),
+    "mycartpanda.com": ("checkout", "cartpanda"), "buygoods.com": ("checkout", "buygoods"),
+    "pay.clickbank.net": ("checkout", "clickbank"), "ticto.app": ("checkout", "ticto"),
+    "perfectpay.com.br": ("checkout", "perfectpay"), "samcart.com": ("checkout", "samcart"),
+    "thrivecart.com": ("checkout", "thrivecart"), "digistore24.com": ("checkout", "digistore24"),
+    "redtrack.io": ("tracker", "redtrack"), "t.hyros.com": ("tracker", "hyros"),
+    "clickmagick.com": ("tracker", "clickmagick"),
+    "taboola.com": ("adnet", "taboola"), "outbrain.com": ("adnet", "outbrain"),
+    "mgid.com": ("adnet", "mgid"),
+}
+
+
 def ad_networks(html: str) -> list:
     return sorted(n for n, rx in AD_NETWORKS.items() if re.search(rx, html, re.I))
 
