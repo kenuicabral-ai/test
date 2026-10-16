@@ -14,7 +14,10 @@ cfg.update({
     "apify_token": os.environ.get("APIFY_TOKEN", ""),
     # APIFY_SEARCHES: uma busca por linha (URL da Biblioteca, page_id ou termo).
     "apify_searches": [s.strip() for s in os.environ.get("APIFY_SEARCHES", "").splitlines() if s.strip()],
-    "apify_auto_advertisers": int(os.environ.get("APIFY_AUTO") or 0),
+    # Com o token presente, puxa por padrão os anúncios dos 15 melhores anunciantes já
+    # achados (APIFY_AUTO=0 desliga; outro número ajusta).
+    "apify_auto_advertisers": int(os.environ["APIFY_AUTO"]) if os.environ.get("APIFY_AUTO")
+    else (15 if os.environ.get("APIFY_TOKEN") else 0),
     "workers": 24,
     "max_minutes": int(os.environ.get("RADAR_MAX_MINUTES") or 50),
     # Sem chave do urlscan, cada busca traz no máximo 100 resultados.
@@ -28,4 +31,5 @@ with open(path, "w", encoding="utf-8") as f:
 print("Configuração da rodada:")
 for k in ("urlscan_api_key", "publicwww_api_key", "anthropic_api_key", "proxy", "apify_token"):
     print(f"  {k}: {'configurada' if cfg[k] else 'não configurada'}")
+print(f"  apify: auto={cfg['apify_auto_advertisers']} anunciantes, {len(cfg['apify_searches'])} buscas")
 print(f"  tempo máximo da rodada: {cfg['max_minutes']} min, {cfg['workers']} análises em paralelo")
