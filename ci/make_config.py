@@ -14,10 +14,9 @@ cfg.update({
     "apify_token": os.environ.get("APIFY_TOKEN", ""),
     # APIFY_SEARCHES: uma busca por linha (URL da Biblioteca, page_id ou termo).
     "apify_searches": [s.strip() for s in os.environ.get("APIFY_SEARCHES", "").splitlines() if s.strip()],
-    # Com o token presente, puxa por padrão os anúncios dos 15 melhores anunciantes já
-    # achados (APIFY_AUTO=0 desliga; outro número ajusta).
-    "apify_auto_advertisers": int(os.environ["APIFY_AUTO"]) if os.environ.get("APIFY_AUTO")
-    else (15 if os.environ.get("APIFY_TOKEN") else 0),
+    # Apify é opcional e pago: só roda se VOCÊ pedir (APIFY_AUTO=N ou APIFY_SEARCHES).
+    # Ter o token não gasta nada sozinho.
+    "apify_auto_advertisers": int(os.environ.get("APIFY_AUTO") or 0),
     "workers": 24,
     "max_minutes": int(os.environ.get("RADAR_MAX_MINUTES") or 50),
     # Sem chave do urlscan, cada busca traz no máximo 100 resultados.

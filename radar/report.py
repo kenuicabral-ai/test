@@ -191,6 +191,8 @@ h1{font-size:22px;margin:0 0 4px}.sub{color:var(--mute);margin:0 0 16px}
 .bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
 input,select{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
 input{flex:1;min-width:200px}
+button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 12px;font:inherit;font-weight:600;cursor:pointer}
+.selbox,#selall{cursor:pointer;width:16px;height:16px}
 .wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
 table{border-collapse:collapse;width:100%;min-width:1000px}
 th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
@@ -210,6 +212,7 @@ a{color:var(--acc);text-decoration:none}.doms{color:var(--mute);font-size:12px;m
 <select id="st"><option value="">Todos os estágios</option><option>nova</option><option>crescendo</option><option>estabelecida</option></select>
 <select id="pt"><option value="">Qualquer porte</option><option>grande</option><option>média</option><option>pequena</option></select>
 <select id="ck"><option value="">Qualquer checkout</option></select>
+<button id="copydoms" title="Copia os domínios marcados, separados por vírgula, para colar na ferramenta de ad-spy">Copiar domínios (0)</button>
 </div>
 <div class="wrap"><table><thead><tr id="hd">__HEAD__</tr></thead><tbody id="bd">__ROWS__</tbody></table></div>
 </main>
@@ -224,18 +227,29 @@ document.getElementById('kpis').innerHTML=[["Ofertas",s.ofertas],["Novas (≤30d
 const cks=[...new Set(D.offers.flatMap(o=>o.checkouts?o.checkouts.split(', '):[]))].sort();
 document.getElementById('ck').innerHTML+=cks.map(c=>`<option>${esc(c)}</option>`).join('');
 let sortK='score',dir=-1;
+const sel=new Set();  // domínios marcados, mantidos entre filtros/ordenação
 function esc(v){return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function color(x){return x>=60?'var(--hot)':x>=40?'var(--warm)':x>=20?'var(--acc)':'var(--mute)'}
-function head(){document.getElementById('hd').innerHTML=COLS.map(([l,k])=>`<th data-k="${k}">${l}${k===sortK?(dir<0?' ▼':' ▲'):''}</th>`).join('');
-document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;dir=k===sortK?-dir:-1;sortK=k;render()})}
+function updateCopy(){document.getElementById('copydoms').textContent=`Copiar domínios (${sel.size})`}
+function head(){document.getElementById('hd').innerHTML='<th><input type="checkbox" id="selall" title="marcar os visíveis"></th>'+COLS.map(([l,k])=>`<th data-k="${k}">${l}${k===sortK?(dir<0?' ▼':' ▲'):''}</th>`).join('');
+document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;dir=k===sortK?-dir:-1;sortK=k;render()});
+document.getElementById('selall').onclick=e=>{document.querySelectorAll('.selbox').forEach(b=>{b.checked=e.target.checked;b.checked?sel.add(b.dataset.d):sel.delete(b.dataset.d)});updateCopy()}}
 function render(){head();const q=document.getElementById('q').value.toLowerCase(),st=document.getElementById('st').value,pt=document.getElementById('pt').value,ck=document.getElementById('ck').value;
 let rows=D.offers.filter(o=>(!st||o.estagio===st)&&(!pt||o.porte===pt)&&(!ck||(o.checkouts||'').split(', ').includes(ck))&&(!q||JSON.stringify(o).toLowerCase().includes(q)));
 rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(sortK==='melhor_tranco'){x=x||1e9;y=y||1e9}return (x>y?1:x<y?-1:0)*dir});
 document.getElementById('bd').innerHTML=rows.map(o=>`<tr>
+<td><input type="checkbox" class="selbox" data-d="${esc(o.dominio_principal)}"${sel.has(o.dominio_principal)?' checked':''}></td>
 <td class="n">${o.rank}</td><td><span class="sc" style="background:${color(o.score)}">${o.score}</span></td>
 <td class="n">${o.forca??''}</td><td class="n">${o.tracao??''}</td>
 <td class="t"><a href="https://${esc(o.dominio_principal)}" target="_blank" rel="noopener noreferrer">${esc(o.dominio_principal)}</a>${o.cloaking?' <span class="tag">cloaking</span>':''}<div>${esc(o.titulo).slice(0,120)}</div>${o.nicho?`<div class="doms">${esc(o.nicho)} · ${esc(o.promessa)}</div>`:''}${o.dominios>1?`<div class="doms">${esc(o.lista_dominios)}</div>`:''}<div class="doms">${esc(o.oferta)}</div></td>
 <td><span class="tag ${o.estagio}">${o.estagio}</span></td><td>${o.porte==='grande'?`<b>${esc(o.porte)}</b>`:esc(o.porte||'')}</td><td>${esc(o.trafego)}</td><td>${esc(o.tracker||'')}</td><td>${o.biblioteca_anuncios?`<a href="${esc(o.biblioteca_anuncios)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'ver anúncios')}</a>`:(o.whatsapp?`<a href="${esc(o.whatsapp)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'whatsapp')}</a>`:esc(o.anunciante||''))}</td><td>${esc(o.checkouts)}</td><td>${esc(o.players)}</td>
 <td class="n">${o.dominios_ativos}/${o.dominios}</td><td class="n">${o.anuncios||''}</td><td class="n">${o.anuncios_video||''}</td><td class="n">${o.max_dias_anuncio||''}</td><td class="n">${o.varreduras_30d||''}</td><td class="n">${o.melhor_tranco}</td><td class="n">${esc(o.visto_desde)}</td></tr>`).join('')}
+document.getElementById('bd').onchange=e=>{if(e.target.classList.contains('selbox')){e.target.checked?sel.add(e.target.dataset.d):sel.delete(e.target.dataset.d);updateCopy()}};
+document.getElementById('copydoms').onclick=async()=>{
+  const list=[...sel].join(', ');
+  if(!list){alert('Marque as ofertas que você quer pesquisar na ferramenta de ad-spy.');return}
+  try{await navigator.clipboard.writeText(list);}catch(e){prompt('Copie os domínios:',list);}
+  const b=document.getElementById('copydoms');b.textContent=`Copiado! (${sel.size})`;setTimeout(updateCopy,1500);
+};
 ['q','st','pt','ck'].forEach(id=>document.getElementById(id).addEventListener('input',render));render();
 </script></body></html>"""
