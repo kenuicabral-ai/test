@@ -96,28 +96,32 @@ Rode `python radar.py run` uma vez por dia. O histórico (`snapshots`) faz o sco
 
 ## Como ler o ranking
 
-- **Score:** soma ponderada dos sinais (pesos em `config.json` → `weights`). Abra `ranking_dominios.csv` → `score_parts` para ver de onde veio cada ponto.
-- **Estágio:** `nova` (até 30 dias), `crescendo` (31 a 90), `estabelecida` (mais de 90).
-- **Domínios ativos/total:** muitos domínios da mesma oferta = operação grande, que troca de domínio para escalar.
-- **Varred. 30d:** quantas vezes a página foi varrida no urlscan no último mês. É um sinal indireto de circulação.
+Cada oferta tem **duas notas separadas**, para não enterrar ofertas novas e fortes:
+
+- **Força (0–100):** o quanto a página parece um funil real sendo anunciado agora. Não depende de tempo. Soma: checkout de infoproduto (15), player de VSL VTurb/Panda/Vidalytics (12), pixel de rede de anúncio (10, prova de tráfego pago), tamanho da operação (7), cloaking (6), player genérico (5), texto de VSL (3).
+- **Tração (0–100):** o quanto a oferta é grande/estabelecida. Depende de tempo e volume: idade dos anúncios (20), Tranco (10), momento (10), varreduras 30d (8), longevidade (8), volume/vídeo/páginas de anúncio, renovações de certificado.
+- **Score = 60% Força + 40% Tração.** Assim uma oferta nova e bem montada aparece no topo pela Força, mesmo sem tração ainda. **Ordene pela coluna Força** para ver os melhores funis recém-nascidos; pela Tração, os já comprovados.
+- A Tração é calculada só sobre o que dá para medir hoje. Enquanto você não importar anúncios da extensão e não houver 7 dias de histórico, esses pilares ficam de fora da conta, em vez de puxar todo mundo para baixo.
+
+Outras colunas:
+
+- **Estágio:** `crescendo` = ganhou anúncios ou visitas na semana (precisa de 7 dias de histórico); senão `nova` (até 30 dias de vida) ou `estabelecida` (mais). Nos primeiros 7 dias quase tudo é nova/estabelecida; "crescendo" começa a aparecer depois.
+- **Tráfego:** a rede de anúncio detectada pelo pixel na página (meta, google, tiktok, taboola, outbrain, mgid…). É onde procurar os criativos. Vazio = nenhum pixel conhecido achado (comum em página com cloaking ou que injeta o pixel por JavaScript; use `--render`).
+- **Domínios ativos/total:** muitos domínios na mesma oferta = operação grande, que troca de domínio para escalar.
+- **Varred. 30d:** quantas vezes a página foi varrida no urlscan no último mês. Sinal indireto de circulação.
 - **Tranco:** quanto menor, mais tráfego. Uma oferta no top 1M é grande.
 
-Sinais e pesos padrão (máximo 136 pontos, normalizados para 100):
+Página fora do ar perde 75% do score. Veja de onde veio cada ponto em `ranking_dominios.csv` → `score_parts`.
 
-| Sinal | Pontos |
-|---|---|
-| Anúncio no ar há 90 dias ou mais | 20 |
-| Checkout de infoproduto | 15 |
-| Player típico de VSL (VTurb, Panda, Vidalytics) | 12 |
-| Tráfego (Tranco) | 10 |
-| Anúncios em vídeo / volume de anúncios | 8 + 8 |
-| Varreduras nos últimos 30 dias | 8 |
-| Longevidade (idade de até 180 dias) | 8 |
-| Tamanho da operação (domínios irmãos) | 8 |
-| Momento (crescimento na semana) | 8 |
-| Outros (player genérico, texto de VSL, cloaking, renovações, páginas anunciantes) | 23 |
+## Onde achar os anúncios de uma oferta
 
-Página fora do ar perde 75% do score.
+A Biblioteca de Anúncios da Meta **não** busca por URL de destino, só por nome de anunciante ou palavra. Por isso procurar o domínio lá não acha nada. Use a coluna **Tráfego**:
+
+- **meta** → Biblioteca de Anúncios da Meta, buscando o nome do anunciante ou o nome do produto (está no título da VSL).
+- **google** → Google Ads Transparency Center (`adstransparency.google.com`), que busca por anunciante e por região. Cobre YouTube.
+- **tiktok** → TikTok Commercial Content Library.
+- **taboola / outbrain / mgid / revcontent** → são redes nativas (aqueles "notícias" tipo CNN/CBS). Os criativos ficam em ferramentas pagas de espionagem de nativos; sem elas, procure o título do advertorial.
+- **vazio** → a oferta pode não estar anunciando no momento, estar com cloaking, ou injetar o pixel por JavaScript (rode com `--render` para pegar esses).
 
 ## Ajustes
 

@@ -1,7 +1,14 @@
-"""Score 0-100 por domínio e ranking por oferta.
+"""Pontua cada oferta em duas medidas separadas, para não enterrar ofertas novas:
 
-Cada sinal vale até N pontos (pesos no config.json). O score é a soma dividida
-pelo máximo possível. Página fora do ar perde 75%.
+- FORÇA (0-100): o quanto a página parece um funil real de resposta direta, sendo
+  anunciado agora. Não depende de idade: checkout, player de VSL, cloaking, pixel de
+  rede de anúncio (prova de tráfego pago), texto de VSL, tamanho da operação.
+- TRAÇÃO (0-100): o quanto a oferta é grande/estabelecida. Depende de tempo e volume:
+  idade, anúncios (se importados), varreduras no urlscan, Tranco, renovações, momento.
+
+SCORE = mistura das duas. Uma oferta nova e bem montada tem FORÇA alta e sobe, mesmo
+com TRAÇÃO baixa. Cada medida é normalizada só pelos sinais mensuráveis hoje, então
+não fica comprimida por pilares ainda vazios (ex.: anúncios não importados).
 """
 import datetime as dt
 import json
@@ -12,12 +19,13 @@ from .analyze import is_offer
 from .db import jl, today
 from .signatures import STRONG_PLAYERS
 
-DEFAULT_WEIGHTS = {
-    "checkout": 15, "player_forte": 12, "player": 5, "texto_vsl": 3,
-    "anuncio_idade": 20, "anuncio_video": 8, "anuncio_volume": 8, "anuncio_paginas": 4,
-    "trafego_tranco": 10, "varreduras_30d": 8, "varreduras_total": 4,
-    "longevidade": 8, "renovacoes_cert": 3, "operacao": 8, "cloaking": 4, "momento": 8,
-}
+FORCA_W = {"checkout": 15, "player_forte": 12, "player": 5, "texto_vsl": 3,
+           "cloaking": 6, "trafego_pago": 10, "operacao": 7}
+TRACAO_W = {"anuncio_idade": 20, "anuncio_video": 6, "anuncio_volume": 8, "anuncio_paginas": 4,
+            "trafego_tranco": 10, "varreduras_30d": 8, "varreduras_total": 4,
+            "longevidade": 8, "renovacoes_cert": 3, "momento": 10}
+AD_PARTS = {"anuncio_idade", "anuncio_video", "anuncio_volume", "anuncio_paginas"}
+BLEND = 0.6  # peso da FORÇA no score final (TRAÇÃO leva 0.4)
 
 
 def _cap(x):
@@ -41,26 +49,33 @@ def _momentum(con, domain, row):
            WHERE domain=? AND day <= date('now', 'localtime', '-7 days')
            ORDER BY day DESC LIMIT 1""", (domain,)).fetchone()
     if not old:
-        return 0.0
+        return None  # ainda sem histórico de 7 dias para este domínio
     gain = max(0, (row["ad_count"] or 0) - (old["ad_count"] or 0))
     gain += max(0, (row["urlscan_30d"] or 0) - (old["urlscan_30d"] or 0)) / 2
     return _cap(gain / 5)
 
 
 def run(con, cfg):
-    W = {**DEFAULT_WEIGHTS, **cfg.get("weights", {})}
-    total_w = sum(W.values())
+    fw = {**FORCA_W, **cfg.get("forca_weights", {})}
+    tw = {**TRACAO_W, **cfg.get("tracao_weights", {})}
     rows = con.execute("SELECT * FROM domains").fetchall()
+    adnets = defaultdict(set)
+    for r in con.execute("SELECT domain, value FROM links WHERE kind='adnet'"):
+        adnets[r["domain"]].add(r["value"])
     cluster_size = defaultdict(int)
     for r in rows:
         if is_offer(r):
             cluster_size[r["cluster_id"]] += 1
+    # O que é mensurável nesta rodada decide o denominador de TRAÇÃO.
+    has_ads = any((r["ad_count"] or 0) > 0 for r in rows)
+    has_history = con.execute(
+        "SELECT 1 FROM snapshots WHERE day <= date('now','localtime','-7 days') LIMIT 1").fetchone()
     t = dt.date.today()
     scored = 0
     for r in rows:
         if not is_offer(r):
-            con.execute("UPDATE domains SET score=NULL, score_parts=NULL, stage=NULL WHERE domain=?",
-                        (r["domain"],))
+            con.execute("""UPDATE domains SET score=NULL, score_parts=NULL, stage=NULL,
+                           forca=NULL, tracao=NULL WHERE domain=?""", (r["domain"],))
             continue
         players = set(jl(r["players"]))
         dates = [d for d in (_date(r["cert_first"]), _date(r["urlscan_first"]),
@@ -68,11 +83,18 @@ def run(con, cfg):
         age = (t - min(dates)).days if dates else 0
         if r["ad_max_days"]:
             age = max(age, r["ad_max_days"])
-        f = {
+        mom = _momentum(con, r["domain"], r)
+
+        forca_f = {
             "checkout": 1.0 if jl(r["checkouts"]) else 0.0,
             "player_forte": 1.0 if players & STRONG_PLAYERS else 0.0,
             "player": 1.0 if players else 0.0,
             "texto_vsl": 1.0 if r["vsl_text"] else 0.0,
+            "cloaking": 1.0 if r["cloaked"] else 0.0,
+            "trafego_pago": 1.0 if adnets[r["domain"]] else 0.0,
+            "operacao": _cap((cluster_size[r["cluster_id"]] - 1) / 10),
+        }
+        tracao_f = {
             "anuncio_idade": _cap((r["ad_max_days"] or 0) / 90),
             "anuncio_video": _cap((r["ad_video"] or 0) / 5),
             "anuncio_volume": _cap((r["ad_count"] or 0) / 20),
@@ -82,31 +104,51 @@ def run(con, cfg):
             "varreduras_total": _log_ratio(r["urlscan_total"], 200),
             "longevidade": _cap(age / 180),
             "renovacoes_cert": _cap((r["cert_count"] or 0) / 6),
-            "operacao": _cap((cluster_size[r["cluster_id"]] - 1) / 10),
-            "cloaking": 1.0 if r["cloaked"] else 0.0,
-            "momento": _momentum(con, r["domain"], r),
+            "momento": mom or 0.0,
         }
-        parts = {k: round(W[k] * v, 1) for k, v in f.items() if v}
-        score = 100 * sum(parts.values()) / total_w
+        # Denominador = só os sinais mensuráveis hoje.
+        tracao_den = 0
+        for k, w in tw.items():
+            if k in AD_PARTS and not has_ads:
+                continue
+            if k == "momento" and not has_history:
+                continue
+            tracao_den += w
+        forca = 100 * sum(fw[k] * v for k, v in forca_f.items()) / sum(fw.values())
+        tracao = 100 * sum(tw[k] * v for k, v in tracao_f.items()
+                           if not (k in AD_PARTS and not has_ads)
+                           and not (k == "momento" and not has_history)) / (tracao_den or 1)
+        score = BLEND * forca + (1 - BLEND) * tracao
         if r["alive"] == 0:
             score *= 0.25
-        stage = "nova" if age <= 30 else "crescendo" if age <= 90 else "estabelecida"
-        con.execute("UPDATE domains SET score=?, score_parts=?, stage=? WHERE domain=?",
-                    (round(score, 1), json.dumps(parts, ensure_ascii=False), stage, r["domain"]))
+        parts = {**{k: round(fw[k] * v, 1) for k, v in forca_f.items() if v},
+                 **{k: round(tw[k] * v, 1) for k, v in tracao_f.items() if v}}
+        if mom and mom > 0:
+            stage = "crescendo"
+        elif age <= 30:
+            stage = "nova"
+        else:
+            stage = "estabelecida"
+        con.execute("""UPDATE domains SET score=?, forca=?, tracao=?, score_parts=?, stage=?
+                       WHERE domain=?""",
+                    (round(score, 1), round(forca, 1), round(tracao, 1),
+                     json.dumps(parts, ensure_ascii=False), stage, r["domain"]))
         con.execute("""INSERT OR REPLACE INTO snapshots(domain, day, alive, score, ad_count, urlscan_30d)
                        VALUES(?,?,?,?,?,?)""",
                     (r["domain"], today(), r["alive"], round(score, 1), r["ad_count"], r["urlscan_30d"]))
         scored += 1
     con.commit()
-    print(f"  score: {scored} ofertas pontuadas")
+    print(f"  score: {scored} ofertas pontuadas (ads={'sim' if has_ads else 'não'}, "
+          f"histórico={'sim' if has_history else 'ainda não'})")
 
 
 def offers(con):
     """Agrupa domínios em ofertas: mesmo produto no checkout, senão mesma operação."""
     rows = [r for r in con.execute("SELECT * FROM domains WHERE score IS NOT NULL")]
     prod = defaultdict(set)
-    for r in con.execute("SELECT domain, value FROM links WHERE kind='product'"):
-        prod[r["domain"]].add(r["value"])
+    adnet = defaultdict(set)
+    for r in con.execute("SELECT domain, kind, value FROM links WHERE kind IN ('product','adnet')"):
+        (prod if r["kind"] == "product" else adnet)[r["domain"]].add(r["value"])
     # Domínio sem produto (ex.: página de entrada que recebe os anúncios) herda o produto
     # mais comum da sua operação, para os anúncios somarem na oferta certa.
     cluster_prod = defaultdict(lambda: defaultdict(int))
@@ -133,10 +175,14 @@ def offers(con):
                   for m in members]
         firsts += [(dt.date.today() - dt.timedelta(days=m["ad_max_days"])).isoformat()
                    for m in members if m["ad_max_days"]]
+        nets = sorted({n for m in members for n in adnet[m["domain"]]})
         out.append({
             "oferta": key,
             "score": round(min(100, (top["score"] or 0) + bonus), 1),
+            "forca": top["forca"],
+            "tracao": top["tracao"],
             "estagio": top["stage"],
+            "trafego": ", ".join(nets),
             "dominio_principal": top["domain"],
             "titulo": top["title"] or "",
             "nicho": top["niche"] or "",

@@ -7,10 +7,10 @@ import os
 from .db import jl
 from .score import offers
 
-DOMAIN_COLS = ["domain", "score", "stage", "alive", "cloaked", "title", "niche", "players",
-               "checkouts", "ad_count", "ad_video", "ad_max_days", "urlscan_30d", "urlscan_total",
-               "tranco_rank", "cert_first", "cert_count", "cluster_id", "sources", "final_url",
-               "checkout_urls", "score_parts"]
+DOMAIN_COLS = ["domain", "score", "forca", "tracao", "stage", "alive", "cloaked", "title", "niche",
+               "players", "checkouts", "ad_count", "ad_video", "ad_max_days", "urlscan_30d",
+               "urlscan_total", "tranco_rank", "cert_first", "cert_count", "cluster_id", "sources",
+               "final_url", "checkout_urls", "score_parts"]
 
 
 def _write_csv(path, header, rows):
@@ -45,17 +45,21 @@ def run(con, out_dir):
     e = html.escape
     static = "".join(
         f"<tr><td class='n'>{i}</td><td><b>{o['score']}</b></td>"
+        f"<td class='n'>{o['forca'] if o['forca'] is not None else ''}</td>"
+        f"<td class='n'>{o['tracao'] if o['tracao'] is not None else ''}</td>"
         f"<td class='t'><a href='https://{e(o['dominio_principal'])}'>{e(o['dominio_principal'])}</a>"
         f"<div>{e(o['titulo'][:120])}</div><div class='doms'>{e(o['oferta'])}</div></td>"
-        f"<td>{e(o['estagio'] or '')}</td><td>{e(o['checkouts'])}</td><td>{e(o['players'])}</td>"
+        f"<td>{e(o['estagio'] or '')}</td><td>{e(o['trafego'])}</td>"
+        f"<td>{e(o['checkouts'])}</td><td>{e(o['players'])}</td>"
         f"<td class='n'>{o['dominios_ativos']}/{o['dominios']}</td><td class='n'>{o['anuncios'] or ''}</td>"
         f"<td class='n'>{o['anuncios_video'] or ''}</td><td class='n'>{o['max_dias_anuncio'] or ''}</td>"
         f"<td class='n'>{o['varreduras_30d'] or ''}</td><td class='n'>{o['melhor_tranco']}</td>"
         f"<td class='n'>{e(o['visto_desde'])}</td></tr>"
         for i, o in enumerate(offs[:500], 1))
-    static_head = "".join(f"<th>{h}</th>" for h in ["#", "Score", "Oferta", "Estágio", "Checkout", "Player",
-                                                     "Domínios", "Anúncios", "Vídeo", "Máx. dias",
-                                                     "Varred. 30d", "Tranco", "Desde"])
+    static_head = "".join(f"<th>{h}</th>" for h in ["#", "Score", "Força", "Tração", "Oferta", "Estágio",
+                                                     "Tráfego", "Checkout", "Player", "Domínios",
+                                                     "Anúncios", "Vídeo", "Máx. dias", "Varred. 30d",
+                                                     "Tranco", "Desde"])
     sub = (f"{stats['ofertas']} ofertas em {stats['dominios_oferta']} domínios · "
            f"{stats['descobertos']} domínios descobertos, {stats['analisados']} analisados")
     page = (PAGE.replace("__ROWS__", static).replace("__HEAD__", static_head).replace("__SUB__", e(sub))
@@ -107,12 +111,12 @@ a{color:var(--acc);text-decoration:none}.doms{color:var(--mute);font-size:12px;m
 </main>
 <script>
 const D=__DATA__;
-const COLS=[["#","rank"],["Score","score"],["Oferta","dominio_principal"],["Estágio","estagio"],["Checkout","checkouts"],["Player","players"],["Domínios","dominios_ativos"],["Anúncios","anuncios"],["Vídeo","anuncios_video"],["Máx. dias","max_dias_anuncio"],["Varred. 30d","varreduras_30d"],["Tranco","melhor_tranco"],["Desde","visto_desde"]];
+const COLS=[["#","rank"],["Score","score"],["Força","forca"],["Tração","tracao"],["Oferta","dominio_principal"],["Estágio","estagio"],["Tráfego","trafego"],["Checkout","checkouts"],["Player","players"],["Domínios","dominios_ativos"],["Anúncios","anuncios"],["Vídeo","anuncios_video"],["Máx. dias","max_dias_anuncio"],["Varred. 30d","varreduras_30d"],["Tranco","melhor_tranco"],["Desde","visto_desde"]];
 D.offers.forEach((o,i)=>o.rank=i+1);
 const s=D.stats;
 document.getElementById('sub').textContent=`${s.ofertas} ofertas em ${s.dominios_oferta} domínios · ${s.descobertos} domínios descobertos, ${s.analisados} analisados`;
 const fontes=Object.entries(s.fontes).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}: ${v}`).join(' · ');
-document.getElementById('kpis').innerHTML=[["Ofertas",s.ofertas],["Novas (≤30d)",D.offers.filter(o=>o.estagio==='nova').length],["Crescendo (31–90d)",D.offers.filter(o=>o.estagio==='crescendo').length],["Estabelecidas",D.offers.filter(o=>o.estagio==='estabelecida').length]].map(([l,v])=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('')+`<div class="kpi" style="grid-column:span 2"><span>Ofertas por fonte</span><div style="font-size:12px;margin-top:4px">${esc(fontes)}</div></div>`;
+document.getElementById('kpis').innerHTML=[["Ofertas",s.ofertas],["Novas (≤30d)",D.offers.filter(o=>o.estagio==='nova').length],["Crescendo",D.offers.filter(o=>o.estagio==='crescendo').length],["Estabelecidas",D.offers.filter(o=>o.estagio==='estabelecida').length]].map(([l,v])=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('')+`<div class="kpi" style="grid-column:span 2"><span>Ofertas por fonte</span><div style="font-size:12px;margin-top:4px">${esc(fontes)}</div></div>`;
 const cks=[...new Set(D.offers.flatMap(o=>o.checkouts?o.checkouts.split(', '):[]))].sort();
 document.getElementById('ck').innerHTML+=cks.map(c=>`<option>${esc(c)}</option>`).join('');
 let sortK='score',dir=-1;
@@ -125,8 +129,9 @@ let rows=D.offers.filter(o=>(!st||o.estagio===st)&&(!ck||(o.checkouts||'').split
 rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(sortK==='melhor_tranco'){x=x||1e9;y=y||1e9}return (x>y?1:x<y?-1:0)*dir});
 document.getElementById('bd').innerHTML=rows.map(o=>`<tr>
 <td class="n">${o.rank}</td><td><span class="sc" style="background:${color(o.score)}">${o.score}</span></td>
+<td class="n">${o.forca??''}</td><td class="n">${o.tracao??''}</td>
 <td class="t"><a href="https://${esc(o.dominio_principal)}" target="_blank" rel="noopener noreferrer">${esc(o.dominio_principal)}</a>${o.cloaking?' <span class="tag">cloaking</span>':''}<div>${esc(o.titulo).slice(0,120)}</div>${o.nicho?`<div class="doms">${esc(o.nicho)} · ${esc(o.promessa)}</div>`:''}${o.dominios>1?`<div class="doms">${esc(o.lista_dominios)}</div>`:''}<div class="doms">${esc(o.oferta)}</div></td>
-<td><span class="tag ${o.estagio}">${o.estagio}</span></td><td>${esc(o.checkouts)}</td><td>${esc(o.players)}</td>
+<td><span class="tag ${o.estagio}">${o.estagio}</span></td><td>${esc(o.trafego)}</td><td>${esc(o.checkouts)}</td><td>${esc(o.players)}</td>
 <td class="n">${o.dominios_ativos}/${o.dominios}</td><td class="n">${o.anuncios||''}</td><td class="n">${o.anuncios_video||''}</td><td class="n">${o.max_dias_anuncio||''}</td><td class="n">${o.varreduras_30d||''}</td><td class="n">${o.melhor_tranco}</td><td class="n">${esc(o.visto_desde)}</td></tr>`).join('')}
 ['q','st','ck'].forEach(id=>document.getElementById(id).addEventListener('input',render));render();
 </script></body></html>"""

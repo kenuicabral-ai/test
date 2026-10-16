@@ -63,6 +63,40 @@ TRACKING = {
     "utmify": r"pixelId\s*[=:]\s*['\"]([A-Za-z0-9]{16,32})",
 }
 
+# Redes de anúncio: o pixel/script na página revela ONDE a oferta compra tráfego.
+# É o que diz em qual biblioteca de anúncios procurar os criativos.
+AD_NETWORKS = {
+    "meta": r"fbevents\.js|fbq\(\s*['\"](?:init|track)|facebook\.com/tr\b|connect\.facebook\.net",
+    "google": r"googleadservices\.com|gtag\(\s*['\"]config['\"]\s*,\s*['\"]AW-|google_conversion|"
+              r"\bAW-\d{9,12}\b|fls\.doubleclick\.net|googleads\.g\.doubleclick\.net",
+    "tiktok": r"analytics\.tiktok\.com|ttq\.(?:load|track|page)\(",
+    "taboola": r"trc\.taboola\.com|taboola\.com/libtrc|\b_tfa\b",
+    "outbrain": r"outbrain\.com/outbrain\.js|\bobApi\(|amplify\.outbrain",
+    "mgid": r"\bmgid\.com|jsc\.mgid\.com",
+    "revcontent": r"revcontent\.com|trends\.revcontent",
+    "bing": r"bat\.bing\.com|\buetq\b",
+    "pinterest": r"pintrk\(|s\.pinimg\.com/ct",
+    "kwai": r"s\d*\.kwai\.net|kwai(?:ad|pixel)",
+}
+# Onde procurar os criativos de cada rede (mostrado ao usuário).
+ADNET_WHERE = {
+    "meta": "Biblioteca de Anúncios da Meta (busque pelo nome do anunciante)",
+    "google": "Google Ads Transparency Center (adstransparency.google.com) — busca por anunciante/domínio",
+    "tiktok": "TikTok Commercial Content Library",
+    "taboola": "rede nativa Taboola (spy tool de nativos)",
+    "outbrain": "rede nativa Outbrain (spy tool de nativos)",
+    "mgid": "rede nativa MGID (spy tool de nativos)",
+    "revcontent": "rede nativa RevContent (spy tool de nativos)",
+    "bing": "Microsoft/Bing Ads",
+    "pinterest": "Pinterest Ads",
+    "kwai": "Kwai for Business",
+}
+
+
+def ad_networks(html: str) -> list:
+    return sorted(n for n, rx in AD_NETWORKS.items() if re.search(rx, html, re.I))
+
+
 # Palavras típicas de VSL/advertorial (sinal fraco, só reforça).
 VSL_TEXT = re.compile(
     r"assista|até o final|vídeo abaixo|video below|watch (?:this|the) video|"
@@ -177,6 +211,7 @@ def extract(html: str) -> dict:
         "products": sorted(products),
         "checkout_urls": checkout_urls,
         "tracking": tracking,
+        "adnets": ad_networks(html),
         "title": title,
         "lang": lang,
         "text": text[:1500],

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS domains(
   urlscan_total INTEGER, urlscan_30d INTEGER, urlscan_first TEXT, urlscan_last TEXT,
   ad_count INTEGER, ad_video INTEGER, ad_max_days INTEGER, ad_pages INTEGER,
   tranco_rank INTEGER, cluster_id INTEGER, score REAL, score_parts TEXT, stage TEXT,
-  last_enriched TEXT, classified INTEGER
+  last_enriched TEXT, classified INTEGER, forca REAL, tracao REAL
 );
 CREATE TABLE IF NOT EXISTS links(
   domain TEXT, kind TEXT, value TEXT, PRIMARY KEY(domain, kind, value)
@@ -58,6 +58,12 @@ def connect(path):
     con = sqlite3.connect(path, timeout=60)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+    # Migração: acrescenta colunas novas a bancos criados por versões anteriores.
+    have = {r["name"] for r in con.execute("PRAGMA table_info(domains)")}
+    for col, decl in (("forca", "REAL"), ("tracao", "REAL")):
+        if col not in have:
+            con.execute(f"ALTER TABLE domains ADD COLUMN {col} {decl}")
+    con.commit()
     return con
 
 

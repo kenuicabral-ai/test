@@ -83,6 +83,8 @@ def first_seen_today():
 def line(i, o):
     e = html.escape
     bits = [o.get("estagio") or ""]
+    if o.get("trafego"):
+        bits.append(f"tráfego: {o['trafego']}")
     if o.get("checkouts"):
         bits.append(o["checkouts"])
     if o.get("max_dias_anuncio") not in ("", "0", None):
@@ -92,7 +94,10 @@ def line(i, o):
     if o.get("cloaking"):
         bits.append("cloaking")
     title = (o.get("nicho") or o.get("titulo") or "")[:60]
-    return (f"{i}. <b>{e(o['score'])}</b> · <a href=\"https://{e(o['dominio_principal'])}\">"
+    forca = f"F{o['forca']}" if o.get("forca") else ""
+    tracao = f"T{o['tracao']}" if o.get("tracao") else ""
+    ft = (" (" + " ".join(x for x in (forca, tracao) if x) + ")") if (forca or tracao) else ""
+    return (f"{i}. <b>{e(o['score'])}</b>{ft} · <a href=\"https://{e(o['dominio_principal'])}\">"
             f"{e(o['dominio_principal'])}</a>\n    {e(' · '.join(b for b in bits if b))}"
             + (f"\n    <i>{e(title)}</i>" if title else ""))
 
