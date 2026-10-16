@@ -115,7 +115,9 @@ Página fora do ar perde 75% do score. Veja de onde veio cada ponto em `ranking_
 
 ## Onde achar os anúncios de uma oferta
 
-A Biblioteca de Anúncios da Meta **não** busca por URL de destino, só por nome de anunciante ou palavra. Por isso procurar o domínio lá não acha nada. Use a coluna **Tráfego**:
+A coluna **Anunciante** já resolve isso na maioria dos casos: o sistema lê o Facebook, o Instagram e o WhatsApp que a própria página do funil expõe e, quando acha o Facebook, monta um link que abre **todos os anúncios ativos daquele anunciante** na Biblioteca da Meta (pelo ID numérico da página quando disponível, senão por busca). É o caminho certo, porque a Biblioteca não busca por URL de destino, só por anunciante. O ID do pixel da Meta não serve: ele identifica o pixel, não a página, e não há como converter um no outro.
+
+Quando a coluna Anunciante estiver vazia, caia para a coluna **Tráfego**:
 
 - **meta** → Biblioteca de Anúncios da Meta, buscando o nome do anunciante ou o nome do produto (está no título da VSL).
 - **google** → Google Ads Transparency Center (`adstransparency.google.com`), que busca por anunciante e por região. Cobre YouTube.

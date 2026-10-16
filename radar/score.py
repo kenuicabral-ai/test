@@ -17,7 +17,7 @@ from collections import defaultdict
 
 from .analyze import is_offer
 from .db import jl, today
-from .signatures import STRONG_PLAYERS
+from .signatures import STRONG_PLAYERS, ad_library_url
 
 FORCA_W = {"checkout": 15, "player_forte": 12, "player": 5, "texto_vsl": 3,
            "cloaking": 6, "trafego_pago": 10, "operacao": 7}
@@ -147,8 +147,15 @@ def offers(con):
     rows = [r for r in con.execute("SELECT * FROM domains WHERE score IS NOT NULL")]
     prod = defaultdict(set)
     adnet = defaultdict(set)
-    for r in con.execute("SELECT domain, kind, value FROM links WHERE kind IN ('product','adnet')"):
-        (prod if r["kind"] == "product" else adnet)[r["domain"]].add(r["value"])
+    social = defaultdict(dict)
+    for r in con.execute("SELECT domain, kind, value FROM links WHERE kind IN ('product','adnet','social')"):
+        if r["kind"] == "product":
+            prod[r["domain"]].add(r["value"])
+        elif r["kind"] == "adnet":
+            adnet[r["domain"]].add(r["value"])
+        else:  # social: "fb:handle", "fb_id:123", "ig:handle", "wa:number"
+            k, _, v = r["value"].partition(":")
+            social[r["domain"]][k] = v
     # Domínio sem produto (ex.: página de entrada que recebe os anúncios) herda o produto
     # mais comum da sua operação, para os anúncios somarem na oferta certa.
     cluster_prod = defaultdict(lambda: defaultdict(int))
@@ -176,6 +183,13 @@ def offers(con):
         firsts += [(dt.date.today() - dt.timedelta(days=m["ad_max_days"])).isoformat()
                    for m in members if m["ad_max_days"]]
         nets = sorted({n for m in members for n in adnet[m["domain"]]})
+        soc = {}
+        for m in members:  # junta o anunciante achado em qualquer domínio da oferta
+            for k, v in social[m["domain"]].items():
+                soc.setdefault(k, v)
+        anunciante = (f"fb/{soc['fb']}" if soc.get("fb") else
+                      f"ig/{soc['ig']}" if soc.get("ig") else
+                      f"wa/{soc['wa']}" if soc.get("wa") else "")
         out.append({
             "oferta": key,
             "score": round(min(100, (top["score"] or 0) + bonus), 1),
@@ -183,6 +197,10 @@ def offers(con):
             "tracao": top["tracao"],
             "estagio": top["stage"],
             "trafego": ", ".join(nets),
+            "anunciante": anunciante,
+            "biblioteca_anuncios": ad_library_url(soc.get("fb"), soc.get("fb_id")),
+            "instagram": f"https://instagram.com/{soc['ig']}" if soc.get("ig") else "",
+            "whatsapp": f"https://wa.me/{soc['wa']}" if soc.get("wa") else "",
             "dominio_principal": top["domain"],
             "titulo": top["title"] or "",
             "nicho": top["niche"] or "",

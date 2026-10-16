@@ -97,6 +97,56 @@ def ad_networks(html: str) -> list:
     return sorted(n for n, rx in AD_NETWORKS.items() if re.search(rx, html, re.I))
 
 
+# Anunciante: quem roda os anúncios. O pixel da Meta é o ID do pixel, NÃO da página,
+# e não há como converter um no outro. Mas a própria página quase sempre linka o
+# Facebook/Instagram/WhatsApp do anunciante, e por aí se chega a todos os anúncios dele.
+_FB_SKIP = {"tr", "sharer", "sharer.php", "plugins", "dialog", "login", "ads", "events",
+            "groups", "watch", "story.php", "policies", "help", "policy", "business",
+            "l.php", "permalink.php", "photo.php", "home.php", "pages", "people", "gaming",
+            "marketplace", "messages", "notifications", "privacy", "legal", "settings",
+            "hashtag", "search", "games", "reel", "reels", "share", "profile.php",
+            "v2.0", "v2.1", "v2.2", "v2.3", "v3.0", "v3.1", "v3.2", "v3.3", "v4.0",
+            "v5.0", "v6.0", "v7.0", "v8.0", "v9.0", "v10.0", "v11.0", "v12.0",
+            "v13.0", "v14.0", "v15.0", "v16.0", "v17.0", "v18.0", "v19.0", "public"}
+_IG_SKIP = {"p", "reel", "reels", "explore", "accounts", "about", "developer", "legal",
+            "directory", "tv", "stories", "privacy", "terms", "api"}
+_FB_HANDLE = re.compile(r"(?:https?:)?//(?:www\.|m\.|web\.|pt-br\.)?(?:facebook|fb)\.com/"
+                        r"([A-Za-z0-9.][A-Za-z0-9.\-]{2,59})(?=[\"'/?#]|\\|$)", re.I)
+_FB_NUM = re.compile(r"(?:view_all_page_id=|profile\.php\?id=|/pages/[^/\"']+/|/people/[^/\"']+/"
+                     r"|[\"']?page_id[\"']?\s*[:=]\s*[\"']?)(\d{9,20})", re.I)
+_IG_HANDLE = re.compile(r"(?:https?:)?//(?:www\.)?instagram\.com/([A-Za-z0-9._]{2,40})(?=[\"'/?#]|\\|$)", re.I)
+_WA = re.compile(r"(?:wa\.me/|(?:api|web)\.whatsapp\.com/send\?phone=|whatsapp\.com/send\?phone=)"
+                 r"\+?(\d{10,15})", re.I)
+
+
+def advertiser(html: str) -> dict:
+    """Facebook/Instagram/WhatsApp do anunciante, para achar os anúncios na fonte."""
+    out = {}
+    fb = [h for h in _FB_HANDLE.findall(html) if h.lower() not in _FB_SKIP and not h[0] == "."]
+    if fb:
+        out["fb"] = max(set(fb), key=fb.count)
+    nums = _FB_NUM.findall(html)
+    if nums:
+        out["fb_id"] = max(set(nums), key=nums.count)
+    ig = [h for h in _IG_HANDLE.findall(html) if h.lower() not in _IG_SKIP]
+    if ig:
+        out["ig"] = max(set(ig), key=ig.count)
+    wa = _WA.findall(html)
+    if wa:
+        out["wa"] = max(set(wa), key=wa.count)
+    return out
+
+
+def ad_library_url(fb=None, fb_id=None, country="BR"):
+    """Link que abre TODOS os anúncios ativos do anunciante na Biblioteca da Meta."""
+    base = "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&media_type=all"
+    if fb_id:
+        return f"{base}&country={country}&view_all_page_id={fb_id}"
+    if fb:
+        return f"{base}&country={country}&q={fb}&search_type=page"
+    return ""
+
+
 # Palavras típicas de VSL/advertorial (sinal fraco, só reforça).
 VSL_TEXT = re.compile(
     r"assista|até o final|vídeo abaixo|video below|watch (?:this|the) video|"
@@ -222,6 +272,7 @@ def extract(html: str) -> dict:
         "checkout_urls": checkout_urls,
         "tracking": tracking,
         "adnets": ad_networks(html),
+        "advertiser": advertiser(html),
         "title": title,
         "lang": lang,
         "text": text[:1500],

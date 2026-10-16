@@ -97,9 +97,14 @@ def line(i, o):
     forca = f"F{o['forca']}" if o.get("forca") else ""
     tracao = f"T{o['tracao']}" if o.get("tracao") else ""
     ft = (" (" + " ".join(x for x in (forca, tracao) if x) + ")") if (forca or tracao) else ""
+    adv = ""
+    if o.get("biblioteca_anuncios"):
+        adv = f"\n    📢 <a href=\"{e(o['biblioteca_anuncios'])}\">anúncios de {e(o.get('anunciante') or 'anunciante')}</a>"
+    elif o.get("whatsapp"):
+        adv = f"\n    📱 <a href=\"{e(o['whatsapp'])}\">{e(o.get('anunciante') or 'whatsapp')}</a>"
     return (f"{i}. <b>{e(o['score'])}</b>{ft} · <a href=\"https://{e(o['dominio_principal'])}\">"
             f"{e(o['dominio_principal'])}</a>\n    {e(' · '.join(b for b in bits if b))}"
-            + (f"\n    <i>{e(title)}</i>" if title else ""))
+            + (f"\n    <i>{e(title)}</i>" if title else "") + adv)
 
 
 def main():

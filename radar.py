@@ -29,11 +29,20 @@ DEFAULT_CONFIG = {
     "anthropic_api_key": "",
     "anthropic_model": "claude-haiku-5-5",
     "urlscan_queries": [
+        # Players de VSL (o funil carrega o player).
         "domain:converteai.net",
         "domain:vturb.com.br",
         "domain:pandavideo.com.br",
         "domain:vidalytics.com",
         "domain:utmify.com.br",
+        # Checkouts (acha funis que usam um player que ainda não listamos, ou nenhum).
+        "domain:pay.hotmart.com",
+        "domain:pay.kiwify.com.br",
+        "domain:mycartpanda.com",
+        "domain:buygoods.com",
+        "domain:pay.clickbank.net",
+        "domain:ticto.app",
+        "domain:perfectpay.com.br",
     ],
     "urlscan_windows": [[0, 3], [3, 7], [7, 14], [14, 30], [30, 60], [60, 120], [120, 180]],
     "urlscan_max_per_query": 1000,
