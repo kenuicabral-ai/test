@@ -189,7 +189,7 @@ def offers(con):
                 soc.setdefault(k, v)
         anunciante = (f"fb/{soc['fb']}" if soc.get("fb") else
                       f"ig/{soc['ig']}" if soc.get("ig") else
-                      f"wa/{soc['wa']}" if soc.get("wa") else "")
+                      soc.get("brand") or (f"wa/{soc['wa']}" if soc.get("wa") else ""))
         out.append({
             "oferta": key,
             "score": round(min(100, (top["score"] or 0) + bonus), 1),
@@ -198,9 +198,12 @@ def offers(con):
             "estagio": top["stage"],
             "trafego": ", ".join(nets),
             "anunciante": anunciante,
-            "biblioteca_anuncios": ad_library_url(soc.get("fb"), soc.get("fb_id")),
+            "biblioteca_anuncios": ad_library_url(soc.get("fb"), soc.get("fb_id"), soc.get("brand")),
             "instagram": f"https://instagram.com/{soc['ig']}" if soc.get("ig") else "",
             "whatsapp": f"https://wa.me/{soc['wa']}" if soc.get("wa") else "",
+            "fb": soc.get("fb", ""), "fb_id": soc.get("fb_id", ""), "ig": soc.get("ig", ""),
+            "wa": soc.get("wa", ""), "marca": soc.get("brand", ""),
+            "cnpj": soc.get("cnpj", ""), "email": soc.get("email", ""),
             "dominio_principal": top["domain"],
             "titulo": top["title"] or "",
             "nicho": top["niche"] or "",

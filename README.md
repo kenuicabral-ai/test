@@ -117,6 +117,8 @@ Página fora do ar perde 75% do score. Veja de onde veio cada ponto em `ranking_
 
 A coluna **Anunciante** já resolve isso na maioria dos casos: o sistema lê o Facebook, o Instagram e o WhatsApp que a própria página do funil expõe e, quando acha o Facebook, monta um link que abre **todos os anúncios ativos daquele anunciante** na Biblioteca da Meta (pelo ID numérico da página quando disponível, senão por busca). É o caminho certo, porque a Biblioteca não busca por URL de destino, só por anunciante. O ID do pixel da Meta não serve: ele identifica o pixel, não a página, e não há como converter um no outro.
 
+O arquivo **`anunciantes.csv`** junta tudo por anunciante: cada operador achado, o link que abre os anúncios dele, e as ofertas que ele roda. Use-o como **lista de trabalho da extensão**: em vez de buscar palavras ao acaso, abra os anúncios de cada anunciante (a Biblioteca é exaustiva por página) e deixe a extensão colher os destinos — que voltam para o radar e revelam os outros domínios do mesmo operador. É o ciclo que cresce sozinho.
+
 Quando a coluna Anunciante estiver vazia, caia para a coluna **Tráfego**:
 
 - **meta** → Biblioteca de Anúncios da Meta, buscando o nome do anunciante ou o nome do produto (está no título da VSL).

@@ -117,12 +117,21 @@ _FB_NUM = re.compile(r"(?:view_all_page_id=|profile\.php\?id=|/pages/[^/\"']+/|/
 _IG_HANDLE = re.compile(r"(?:https?:)?//(?:www\.)?instagram\.com/([A-Za-z0-9._]{2,40})(?=[\"'/?#]|\\|$)", re.I)
 _WA = re.compile(r"(?:wa\.me/|(?:api|web)\.whatsapp\.com/send\?phone=|whatsapp\.com/send\?phone=)"
                  r"\+?(\d{10,15})", re.I)
+_OG_SITE = re.compile(r"<meta[^>]+property=['\"]og:site_name['\"][^>]+content=['\"]([^'\"]{2,80})", re.I)
+_CNPJ = re.compile(r"\b(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})\b")
+_EMAIL = re.compile(r"\b([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})\b")
+_EMAIL_SKIP = ("sentry", "example.", "wix", "godaddy", "cloudflare", "domain.com",
+               "email.com", "seudominio", "your", "@2x", ".png", ".jpg", ".webp")
 
 
 def advertiser(html: str) -> dict:
-    """Facebook/Instagram/WhatsApp do anunciante, para achar os anúncios na fonte."""
+    """Quem roda a oferta: redes sociais, marca e identidade (CNPJ/e-mail) da página.
+
+    O pixel não leva à página do anunciante, mas a própria página quase sempre expõe
+    por onde chegar até ele — e, no Brasil, o CNPJ no rodapé identifica a empresa.
+    """
     out = {}
-    fb = [h for h in _FB_HANDLE.findall(html) if h.lower() not in _FB_SKIP and not h[0] == "."]
+    fb = [h for h in _FB_HANDLE.findall(html) if h.lower() not in _FB_SKIP and h[0] != "."]
     if fb:
         out["fb"] = max(set(fb), key=fb.count)
     nums = _FB_NUM.findall(html)
@@ -134,16 +143,33 @@ def advertiser(html: str) -> dict:
     wa = _WA.findall(html)
     if wa:
         out["wa"] = max(set(wa), key=wa.count)
+    site = _OG_SITE.search(html)
+    if site:
+        out["brand"] = _unescape(site.group(1))[:80]
+    cnpj = _CNPJ.findall(html)
+    if cnpj:
+        out["cnpj"] = cnpj[0]
+    emails = [e for e in _EMAIL.findall(html)
+              if not any(s in e.lower() for s in _EMAIL_SKIP) and len(e) < 60]
+    if emails:
+        out["email"] = max(set(emails), key=emails.count).lower()
     return out
 
 
-def ad_library_url(fb=None, fb_id=None, country="BR"):
-    """Link que abre TODOS os anúncios ativos do anunciante na Biblioteca da Meta."""
+def ad_library_url(fb=None, fb_id=None, brand=None, country="BR"):
+    """Link que abre os anúncios do anunciante na Biblioteca da Meta.
+
+    Com o ID numérico da página, abre TODOS os anúncios ativos dela (exaustivo).
+    Sem o ID, cai para busca pelo @ do Facebook ou pela marca (aproximado).
+    """
     base = "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&media_type=all"
     if fb_id:
         return f"{base}&country={country}&view_all_page_id={fb_id}"
+    from urllib.parse import quote
     if fb:
-        return f"{base}&country={country}&q={fb}&search_type=page"
+        return f"{base}&country={country}&q={quote(fb)}&search_type=page"
+    if brand:
+        return f"{base}&country={country}&q={quote(brand)}&search_type=keyword_unordered"
     return ""
 
 

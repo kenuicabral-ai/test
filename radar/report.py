@@ -13,6 +13,47 @@ DOMAIN_COLS = ["domain", "score", "forca", "tracao", "stage", "alive", "cloaked"
                "final_url", "checkout_urls", "score_parts"]
 
 
+def _advertisers(offs):
+    """Lista de anunciantes achados, cada um com link para seus anúncios e as ofertas dele.
+
+    É a 'lista de trabalho' para usar a extensão por anunciante, em vez de palavra-chave:
+    abra os anúncios de cada um e colha os destinos — que voltam para o radar.
+    """
+    from collections import defaultdict
+
+    from .signatures import ad_library_url
+    # O @ do Facebook é o identificador estável; o ID numérico às vezes só aparece em
+    # alguns funis. Mapeia @ -> ID para não separar o mesmo anunciante.
+    handle_id = {o["fb"]: o["fb_id"] for o in offs if o.get("fb") and o.get("fb_id")}
+    groups = defaultdict(list)
+    for o in offs:
+        key = (o.get("fb") and f"fb:{o['fb']}") or (o.get("fb_id") and f"fbid:{o['fb_id']}") \
+            or (o.get("ig") and f"ig:{o['ig']}") or (o.get("cnpj") and f"cnpj:{o['cnpj']}") \
+            or (o.get("wa") and f"wa:{o['wa']}")
+        if key:
+            groups[key].append(o)
+    out = []
+    for key, items in groups.items():
+        items.sort(key=lambda o: o["score"], reverse=True)
+        top = items[0]
+        fb_id = handle_id.get(top.get("fb")) or top.get("fb_id")
+        out.append({
+            "anunciante": top["anunciante"],
+            "biblioteca_anuncios": ad_library_url(top.get("fb"), fb_id, top.get("marca")),
+            "facebook": f"https://facebook.com/{top['fb']}" if top.get("fb") else "",
+            "instagram": top.get("instagram", ""),
+            "whatsapp": top.get("whatsapp", ""),
+            "cnpj": top.get("cnpj", ""),
+            "email": top.get("email", ""),
+            "ofertas": len(items),
+            "melhor_score": top["score"],
+            "nichos": ", ".join(sorted({o["nicho"] for o in items if o["nicho"]}))[:120],
+            "dominios": " | ".join(o["dominio_principal"] for o in items[:20]),
+        })
+    out.sort(key=lambda a: (a["ofertas"], a["melhor_score"]), reverse=True)
+    return out
+
+
 def _adv_cell(o, e):
     """Célula do anunciante: link para a Biblioteca de Anúncios quando há Facebook."""
     if o.get("biblioteca_anuncios"):
@@ -38,11 +79,16 @@ def run(con, out_dir):
     doms = con.execute("SELECT * FROM domains WHERE score IS NOT NULL ORDER BY score DESC").fetchall()
     _write_csv(os.path.join(out_dir, "ranking_dominios.csv"), DOMAIN_COLS,
                [[r[c] for c in DOMAIN_COLS] for r in doms])
+    advs = _advertisers(offs)
+    if advs:
+        _write_csv(os.path.join(out_dir, "anunciantes.csv"), list(advs[0].keys()),
+                   [list(a.values()) for a in advs])
     stats = {
         "descobertos": con.execute("SELECT COUNT(*) FROM domains").fetchone()[0],
         "analisados": con.execute("SELECT COUNT(*) FROM domains WHERE last_analyzed IS NOT NULL").fetchone()[0],
         "ofertas": len(offs),
         "dominios_oferta": len(doms),
+        "anunciantes": len(advs),
     }
     by_src = {}
     for r in con.execute("SELECT sources FROM domains WHERE score IS NOT NULL"):
@@ -70,7 +116,7 @@ def run(con, out_dir):
                                                      "Tráfego", "Anunciante", "Checkout", "Player",
                                                      "Domínios", "Anúncios", "Vídeo", "Máx. dias",
                                                      "Varred. 30d", "Tranco", "Desde"])
-    sub = (f"{stats['ofertas']} ofertas em {stats['dominios_oferta']} domínios · "
+    sub = (f"{stats['ofertas']} ofertas · {stats['anunciantes']} anunciantes · "
            f"{stats['descobertos']} domínios descobertos, {stats['analisados']} analisados")
     page = (PAGE.replace("__ROWS__", static).replace("__HEAD__", static_head).replace("__SUB__", e(sub))
             .replace("__DATA__", json.dumps({"offers": offs, "stats": stats}, ensure_ascii=False)
@@ -124,7 +170,7 @@ const D=__DATA__;
 const COLS=[["#","rank"],["Score","score"],["Força","forca"],["Tração","tracao"],["Oferta","dominio_principal"],["Estágio","estagio"],["Tráfego","trafego"],["Anunciante","anunciante"],["Checkout","checkouts"],["Player","players"],["Domínios","dominios_ativos"],["Anúncios","anuncios"],["Vídeo","anuncios_video"],["Máx. dias","max_dias_anuncio"],["Varred. 30d","varreduras_30d"],["Tranco","melhor_tranco"],["Desde","visto_desde"]];
 D.offers.forEach((o,i)=>o.rank=i+1);
 const s=D.stats;
-document.getElementById('sub').textContent=`${s.ofertas} ofertas em ${s.dominios_oferta} domínios · ${s.descobertos} domínios descobertos, ${s.analisados} analisados`;
+document.getElementById('sub').textContent=`${s.ofertas} ofertas · ${s.anunciantes||0} anunciantes · ${s.descobertos} domínios descobertos, ${s.analisados} analisados`;
 const fontes=Object.entries(s.fontes).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}: ${v}`).join(' · ');
 document.getElementById('kpis').innerHTML=[["Ofertas",s.ofertas],["Novas (≤30d)",D.offers.filter(o=>o.estagio==='nova').length],["Crescendo",D.offers.filter(o=>o.estagio==='crescendo').length],["Estabelecidas",D.offers.filter(o=>o.estagio==='estabelecida').length]].map(([l,v])=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('')+`<div class="kpi" style="grid-column:span 2"><span>Ofertas por fonte</span><div style="font-size:12px;margin-top:4px">${esc(fontes)}</div></div>`;
 const cks=[...new Set(D.offers.flatMap(o=>o.checkouts?o.checkouts.split(', '):[]))].sort();
