@@ -2,6 +2,7 @@
 
 Tudo aqui é editável: se surgir um player ou checkout novo, adicione o domínio.
 """
+import html as html_lib
 import re
 
 # Players de vídeo usados em VSL. Chave = nome; valor = regex no HTML.
@@ -167,9 +168,9 @@ def extract(html: str) -> dict:
         if vals:
             tracking[kind] = vals[:10]
     t = _TITLE_RE.search(html)
-    title = re.sub(r"\s+", " ", t.group(1)).strip()[:200] if t else ""
+    title = html_lib.unescape(re.sub(r"\s+", " ", t.group(1))).strip()[:200] if t else ""
     lang = (_LANG_RE.search(html) or [None, ""])[1]
-    text = re.sub(r"\s+", " ", _TAGS_RE.sub(" ", html)).strip()
+    text = html_lib.unescape(re.sub(r"\s+", " ", _TAGS_RE.sub(" ", html))).strip()
     return {
         "players": players,
         "checkouts": sorted(checkouts),
