@@ -1,7 +1,10 @@
 """Agrupa domínios em operações (componentes conectados por IDs compartilhados)."""
 from collections import defaultdict
 
-STRONG = {"gtm", "ga4", "ua", "fbpixel", "ttpixel", "utmify", "product", "adpage", "cert", "redirect"}
+# Vínculos que ligam domínios da mesma operação. "product" e "video" são os duráveis
+# (sobrevivem à troca de domínio/pixel); o resto vale para o que está no ar agora.
+STRONG = {"gtm", "ga4", "ua", "fbpixel", "ttpixel", "utmify", "product", "video",
+          "adpage", "cert", "redirect"}
 
 
 def run(con, cfg):

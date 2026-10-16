@@ -116,7 +116,7 @@ def save(con, res):
            ip=res["ip"])
     # A página pode ter mudado desde a última análise: troca os IDs pelos atuais.
     con.execute("""DELETE FROM links WHERE domain=? AND kind IN
-                   ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','adnet','social')""", (d,))
+                   ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','adnet','social','video')""", (d,))
     con.execute("DELETE FROM links WHERE domain=? AND kind='tracker'", (d,))
     for kind, vals in s["tracking"].items():
         for v in vals:
@@ -127,6 +127,8 @@ def save(con, res):
         add_link(con, d, "adnet", n)
     for n in s.get("trackers", []):
         add_link(con, d, "tracker", n)
+    for v in s.get("videos", []):
+        add_link(con, d, "video", v)
     for k, v in s.get("advertiser", {}).items():
         add_link(con, d, "social", f"{k}:{v}")
     if res["ip"]:

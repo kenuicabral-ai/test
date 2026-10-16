@@ -20,7 +20,8 @@ from .db import jl, today
 from .signatures import STRONG_PLAYERS, ad_library_url
 
 FORCA_W = {"checkout": 15, "player_forte": 12, "player": 5, "texto_vsl": 3,
-           "cloaking": 6, "trafego_pago": 10, "omnichannel": 5, "tracker_pro": 9, "operacao": 9}
+           "cloaking": 6, "trafego_pago": 10, "omnichannel": 5, "tracker_pro": 9, "operacao": 9,
+           "rotacao": 7}
 TRACAO_W = {"anuncio_idade": 20, "anuncio_video": 6, "anuncio_volume": 8, "anuncio_paginas": 4,
             "trafego_tranco": 10, "varreduras_30d": 8, "varreduras_total": 4,
             "longevidade": 8, "renovacoes_cert": 3, "momento": 10}
@@ -72,10 +73,15 @@ def run(con, cfg):
         k, _, v = r["value"].partition(":")
         if k in ("player", "checkout", "tracker"):
             seen[r["domain"]][k].add(v)
+    pixels = defaultdict(set)
+    for r in con.execute("SELECT domain, value FROM links WHERE kind='fbpixel'"):
+        pixels[r["domain"]].add(r["value"])
     cluster_size = defaultdict(int)
+    cluster_pixels = defaultdict(set)  # pixels distintos na operação = rotação/escala ativa
     for r in rows:
         if is_offer(r):
             cluster_size[r["cluster_id"]] += 1
+            cluster_pixels[r["cluster_id"]] |= pixels[r["domain"]]
     # O que é mensurável nesta rodada decide o denominador de TRAÇÃO.
     has_ads = any((r["ad_count"] or 0) > 0 for r in rows)
     has_history = con.execute(
@@ -114,6 +120,8 @@ def run(con, cfg):
             "omnichannel": _cap((len(adnets[r["domain"]]) - 1) / 2),
             "tracker_pro": 1.0 if has_tracker else 0.0,
             "operacao": _cap((cluster_size[r["cluster_id"]] - 1) / 8),
+            # Rotação de pixel na mesma operação = trocou de pixel e seguiu escalando.
+            "rotacao": _cap((len(cluster_pixels[r["cluster_id"]]) - 1) / 3),
         }
         tracao_f = {
             "anuncio_idade": _cap((r["ad_max_days"] or 0) / 90),

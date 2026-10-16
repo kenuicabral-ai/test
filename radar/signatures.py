@@ -61,6 +61,28 @@ TRACKERS = {
     "binom": r"\bbinom\b|cpa\.tw",
     "keitaro": r"keitaro|/click\.php\?cnv_id",
 }
+
+# Impressão digital do VÍDEO da VSL. É o vínculo mais durável: o operador troca
+# domínio e pixel quando a Meta bane, mas reaproveita o mesmo vídeo vencedor, que
+# mantém o mesmo ID no player. Liga a mesma oferta mesmo depois da rotação.
+_UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+VIDEO_PATTERNS = [
+    rf"vid[_-]({_UUID})",                               # VTurb <vturb-smartplayer id="vid_<uuid>">
+    r"vid[_-]([0-9a-f]{24})",                            # VTurb (id estilo mongo)
+    rf"converteai\.net/[0-9a-z-]+/(?:players/)?({_UUID})",  # VTurb/ConverteAI media/player
+    rf"cdn\.converteai\.net/[0-9a-z-]+/({_UUID})",
+    rf"pandavideo[^\"'\s]*?[?&]v=({_UUID})",             # Panda embed ?v=<uuid>
+    rf"panda[_-]({_UUID})",
+    r"vidalytics[._/](?:embed[_/]|embed_)([A-Za-z0-9]{8,24})",  # Vidalytics embed id
+]
+
+
+def video_ids(html: str) -> list:
+    out = set()
+    for rx in VIDEO_PATTERNS:
+        for m in re.findall(rx, html, re.I):
+            out.add(m.lower())
+    return sorted(out)[:5]
 _SKIP_SEGMENTS = {"", "pt-br", "pt", "en", "es", "login", "static", "assets", "img",
                   "images", "js", "css", "favicon.ico", "privacy", "terms", "signup",
                   "secure", "track", "tracking", "affiliates", "affiliate", "checkout", "order",
@@ -345,6 +367,7 @@ def extract(html: str) -> dict:
         "tracking": tracking,
         "adnets": ad_networks(html),
         "trackers": trackers(html),
+        "videos": video_ids(html),
         "advertiser": advertiser(html),
         "title": title,
         "lang": lang,
