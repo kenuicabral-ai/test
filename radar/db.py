@@ -70,6 +70,14 @@ def norm_domain(value: str):
     return v if _HOST_RE.match(v) else None
 
 
+def registrable(host):
+    """'cb.oferta.com' -> 'oferta.com'; 'x.loja.com.br' -> 'loja.com.br'."""
+    parts = host.split(".")
+    if len(parts) >= 3 and parts[-2] in {"com", "net", "org", "gov", "edu", "co"} and len(parts[-1]) == 2:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
 def connect(path):
     con = sqlite3.connect(path, timeout=60)
     con.row_factory = sqlite3.Row

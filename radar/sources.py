@@ -17,7 +17,7 @@ import zipfile
 from urllib.parse import quote
 
 from . import net
-from .db import add_domain, add_link, norm_domain, update
+from .db import add_domain, add_link, norm_domain, registrable, update
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"
 
@@ -416,13 +416,6 @@ def crtsh(domain, cfg):
     return None
 
 
-def _registrable(host):
-    parts = host.split(".")
-    if len(parts) >= 3 and parts[-2] in {"com", "net", "org", "gov", "edu", "co"} and len(parts[-1]) == 2:
-        return ".".join(parts[-3:])
-    return ".".join(parts[-2:])
-
-
 def cert_history(con, domain, cfg):
     """Idade (1º certificado), vida (último) e irmãos no mesmo certificado.
 
@@ -438,10 +431,10 @@ def cert_history(con, domain, cfg):
     update(con, domain, cert_first=befores[0] if befores else None,
            cert_last=befores[-1] if befores else None, cert_count=len(serials))
     siblings = set()
-    mine = _registrable(domain)
+    mine = registrable(domain)
     for c in certs:
         names = {norm_domain(n) for n in (c.get("name_value") or "").split("\n")}
-        regs = {_registrable(n) for n in names if n}
+        regs = {registrable(n) for n in names if n}
         if len(regs) > 1 and len(regs) <= 20:  # certificado compartilhado por poucos domínios
             serial = c.get("serial_number") or c.get("id")
             add_link(con, domain, "cert", serial)

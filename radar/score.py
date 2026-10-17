@@ -17,7 +17,7 @@ from collections import defaultdict
 
 from .analyze import is_offer, refresh_seen
 from .db import jl, today
-from .signatures import STRONG_PLAYERS, ad_library_url
+from .signatures import STRONG_PLAYERS, ad_library_url, google_ads_url, tiktok_ads_url
 
 FORCA_W = {"checkout": 15, "player_forte": 12, "player": 5, "texto_vsl": 3,
            "cloaking": 6, "trafego_pago": 10, "omnichannel": 5, "tracker_pro": 9, "operacao": 9,
@@ -261,6 +261,9 @@ def offers(con):
             "tracker": ", ".join(trks),
             "anunciante": anunciante,
             "biblioteca_anuncios": ad_library_url(soc.get("fb"), soc.get("fb_id"), soc.get("brand")),
+            # Google/YouTube: exato pelo domínio. TikTok: pelo nome do anunciante, se roda lá.
+            "anuncios_google": google_ads_url(top["domain"]),
+            "anuncios_tiktok": tiktok_ads_url(soc.get("brand")) if "tiktok" in nets else "",
             "instagram": f"https://instagram.com/{soc['ig']}" if soc.get("ig") else "",
             "whatsapp": f"https://wa.me/{soc['wa']}" if soc.get("wa") else "",
             "fb": soc.get("fb", ""), "fb_id": soc.get("fb_id", ""), "ig": soc.get("ig", ""),

@@ -120,3 +120,22 @@ def test_parked_pages_do_not_form_an_operation(con):
     assert all(r["alive"] == 0 for r in rows)
     assert len({r["cluster_id"] for r in rows}) == 5
     assert con.execute("SELECT COUNT(*) FROM links WHERE kind='ua'").fetchone()[0] == 0
+
+
+def test_ad_library_links_per_network(con):
+    from radar import report
+    from radar.signatures import google_ads_url, tiktok_ads_url
+    assert google_ads_url("cb.getelectroslim.com") == \
+        "https://adstransparency.google.com/?region=anywhere&domain=getelectroslim.com"
+    assert tiktok_ads_url("") == ""
+    vsl = '<script src="https://scripts.converteai.net/p.js"></script><script>ttq.load("CABCDEFGHIJKLMNOPQRS")</script>'
+    _analyzed(con, "oferta.com.br", '<meta property="og:site_name" content="Método X">' + vsl
+              + '<a href="https://www.facebook.com/metodox">fb</a><a href="https://pay.hotmart.com/A1B2C3">c</a>')
+    graph.run(con, {})
+    score.run(con, {})
+    o = score.offers(con)[0]
+    assert o["anuncios_google"].endswith("domain=oferta.com.br")
+    assert o["anuncios_tiktok"] == "https://library.tiktok.com/ads?region=all&adv_name=M%C3%A9todo%20X"
+    assert "search_type=page" in o["biblioteca_anuncios"]
+    cell = report._ads_cell(o, lambda x: x)
+    assert cell.count("<a ") == 3 and "Google" in cell and "TikTok" in cell
