@@ -2,6 +2,20 @@
 
 Mudanças do radar, da mais recente para a mais antiga. Cada entrada diz o que mudou, por quê (o que os dados mostraram) e como foi verificado.
 
+## 2026-10-17 — Testemunha do urlscan lê a página real das ofertas com cloaking (PR #3)
+
+**Por quê:** com cloaking por IP, a nossa visita (servidor do GitHub, IP de datacenter) cai na página isca e a oferta perde player, pixel e checkout no ranking. Ofertas reais como `myslimtide.com`, `trysciaticyl.com` e `sodaslim.com` apareciam sem nada disso, embora o urlscan tivesse visto a página real ("home - SlimTide").
+
+- A busca no urlscan já devolve a varredura mais recente de cada domínio e o título que ela viu: agora isso é guardado (sem custo).
+- Passo novo `testemunha` (também na rodada): para as ofertas sem player/checkout na nossa leitura, ou com cloaking, lê o resultado da varredura (endereços pedidos e links da página) e extrai player, ID do vídeo, pixel, GTM, checkout/produto, tracker e redes sociais do anunciante. Exige a chave do urlscan, usa a cota de leitura (separada da de busca), lê cada varredura uma vez e no máximo 300 por rodada.
+- Esses sinais continuam valendo quando a nossa visita volta a ver a isca. No ranking: título da página real e coluna `visto_pelo_urlscan`.
+- IDs de pixel, GA4 e TikTok também reconhecidos pelas URLs (`facebook.com/tr?id=`, `<noscript>`), não só pelo `fbq('init')`.
+- Páginas mortas pelo título (estacionada, expirada) corrigidas já no ranking, sem esperar a reanálise: 34 no banco de produção; `viralpackage.shop` saiu do 2º lugar.
+
+**Honestidade:** a leitura mostra o que o urlscan viu na data da varredura (pode ser antiga); cloaking que só abre para IP residencial no país continua exigindo proxy para a nossa própria leitura.
+
+**Verificado:** 28 testes com o resultado do urlscan simulado (formato da API). A API de resultado exige chave, então não deu para testar ao vivo daqui; a confirmação vem do log da próxima rodada (linha "varreduras lidas").
+
 ## 2026-10-17 — Fila de análise por prioridade; páginas estacionadas não viram "operação" (PR #2)
 
 **Por quê (rodada #21, a primeira com o PR #1):** a descoberta incremental trouxe 25.998 domínios novos, mas só 2.823 foram analisados e 23.585 ficaram na fila, na ordem de descoberta; 23.302 vinham só do pixel de nativos (anunciantes comuns). O 2º lugar era `viralpackage.shop` ("Your domain is expired"): 28 páginas de estacionamento da Hostinger ligadas pelo mesmo Google Analytics do provedor (`UA-26575989-44`). As 7.920 varreduras feitas no urlscan não foram marcadas porque o crt.sh não teve tempo, e seriam refeitas todo dia.
