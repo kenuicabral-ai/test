@@ -2,6 +2,19 @@
 
 Mudanças do radar, da mais recente para a mais antiga. Cada entrada diz o que mudou, por quê (o que os dados mostraram) e como foi verificado.
 
+## 2026-10-17 — Fila de análise por prioridade; páginas estacionadas não viram "operação" (PR #2)
+
+**Por quê (rodada #21, a primeira com o PR #1):** a descoberta incremental trouxe 25.998 domínios novos, mas só 2.823 foram analisados e 23.585 ficaram na fila, na ordem de descoberta; 23.302 vinham só do pixel de nativos (anunciantes comuns). O 2º lugar era `viralpackage.shop` ("Your domain is expired"): 28 páginas de estacionamento da Hostinger ligadas pelo mesmo Google Analytics do provedor (`UA-26575989-44`). As 7.920 varreduras feitas no urlscan não foram marcadas porque o crt.sh não teve tempo, e seriam refeitas todo dia.
+
+- Fila de análise: primeiro o que o urlscan viu com player/checkout e o que veio de anúncio, semente ou redirect; depois reanálise das ofertas; tracker; por último o pixel de nativos.
+- Domínio sem DNS responde na hora; página que não abriu pula a visita do robô. CI com 48 análises em paralelo e timeout de 15 s.
+- urlscan e crt.sh com datas separadas: crt.sh fora do ar não faz refazer as varreduras.
+- Buscas de pixel de nativos só leem o que é novo, sem histórico de 180 dias.
+- Página estacionada/expirada não guarda IDs de rastreamento (são do provedor). Novos títulos de página morta: "domain is expired", "domínio expirado".
+- Chave de produto `samcart:tracker` descartada (juntava 12 lojas).
+
+**Verificado:** no banco de produção, a fila nova põe os 2.372 domínios com testemunha de player/checkout na frente; 150 analisados com 35% de VSL/checkout, contra 7,6% na ordem antiga. 21 testes com rede simulada.
+
 ## 2026-10-17 — Cota do urlscan, idade real, ofertas sem agrupamento falso (PR #1)
 
 **Por quê:** na rodada de 16/10 a cota do urlscan já estava esgotada na 1ª busca (0 domínios novos): cada push disparava uma rodada inteira e as canceladas não salvavam nada. O 1º lugar do ranking era falso (`centrorobux.com.br` juntava 20 lojas sem relação pela chave `cartpanda:shopify`). Só 120 de 2.296 domínios tinham idade e quase tudo aparecia como "nova".

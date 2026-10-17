@@ -121,6 +121,12 @@ def save(con, res):
     con.execute("""DELETE FROM links WHERE domain=? AND kind IN
                    ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','adnet','social','video')""", (d,))
     con.execute("DELETE FROM links WHERE domain=? AND kind='tracker'", (d,))
+    if s.get("dead"):
+        # Página de estacionamento/expirado: os IDs (GA, GTM) são do provedor de
+        # hospedagem, não do anunciante; ligariam dezenas de domínios sem relação.
+        if res["ip"]:
+            add_link(con, d, "ip", res["ip"])
+        return
     for kind, vals in s["tracking"].items():
         for v in vals:
             add_link(con, d, kind, v)
