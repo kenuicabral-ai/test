@@ -139,12 +139,13 @@ Rode `python radar.py run` uma vez por dia. O histórico (`snapshots`) faz o sco
 
 ## Como ler o ranking
 
-Cada oferta tem **duas notas separadas**, para não enterrar ofertas novas e fortes:
+Cada oferta tem **duas notas**, e o score junta as duas:
 
-- **Força (0–100):** o quanto a página parece um funil real sendo anunciado agora. Não depende de tempo. Soma: checkout de infoproduto (15), player de VSL VTurb/Panda/Vidalytics (12), pixel de rede de anúncio (10, prova de tráfego pago), tamanho da operação (7), cloaking (6), player genérico (5), texto de VSL (3).
-- **Tração (0–100):** o quanto a oferta é grande/estabelecida. Depende de tempo e volume: idade dos anúncios (20), Tranco (10), momento (10), varreduras 30d (8), longevidade (8), volume/vídeo/páginas de anúncio, renovações de certificado.
-- **Score = 60% Força + 40% Tração.** Assim uma oferta nova e bem montada aparece no topo pela Força, mesmo sem tração ainda. **Ordene pela coluna Força** para ver os melhores funis recém-nascidos; pela Tração, os já comprovados.
-- A Tração é calculada só sobre o que dá para medir hoje. Enquanto você não importar anúncios da extensão e não houver 7 dias de histórico, esses pilares ficam de fora da conta, em vez de puxar todo mundo para baixo.
+- **Força (0–100):** o quanto a página parece um funil real de resposta direta sendo anunciado agora: checkout de infoproduto/nutra, player de VSL (VTurb/Panda/Vidalytics), pixel de rede de anúncio, tracker profissional, cloaking, texto de VSL. Responde "isto é uma oferta de verdade?".
+- **Escala (0–100):** o quanto a oferta está grande, por sinais públicos somados em **todos os domínios dela**: varreduras no urlscan (30 dias e total; é o melhor indicador público de volume de visitas), domínios ativos distintos (afiliados e landers do mesmo produto), tamanho da operação do dono, rotação de pixel (trocou de conta de anúncio e seguiu anunciando), longevidade, anúncios (quando consultados numa fonte de anúncios), várias redes de anúncio, Tranco. Passe o mouse na nota para ver de onde veio cada ponto (coluna `escala_detalhe` no CSV).
+- **Score = 40% Força + 60% Escala.** A Escala pesa inteira a partir de Força 50 e proporcionalmente abaixo disso: sem funil, volume é só popularidade (sites comuns também são muito varridos).
+- **Honestidade:** não é faturamento (isso não é público); é volume e persistência. Só entram na conta os sinais medidos para aquela oferta: oferta sem anúncios consultados ou sem varreduras medidas não perde pontos por isso.
+- **Porte:** grande (Escala ≥ 50), média (≥ 25), pequena.
 
 Outras colunas:
 

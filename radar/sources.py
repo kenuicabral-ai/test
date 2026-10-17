@@ -17,6 +17,7 @@ import zipfile
 from urllib.parse import quote
 
 from . import net
+from .signatures import is_multitenant
 from .db import add_domain, add_link, norm_domain, registrable, update
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"
@@ -434,7 +435,10 @@ def cert_history(con, domain, cfg):
     mine = registrable(domain)
     for c in certs:
         names = {norm_domain(n) for n in (c.get("name_value") or "").split("\n")}
-        regs = {registrable(n) for n in names if n}
+        # 'oferta.com.br.cliente123.meusitehostgator.com.br' é a URL temporária da
+        # hospedagem, não um domínio irmão (ligava todos os clientes da HostGator).
+        names = {n for n in names if n and not n.startswith(domain + ".") and not is_multitenant(n)}
+        regs = {registrable(n) for n in names}
         if len(regs) > 1 and len(regs) <= 20:  # certificado compartilhado por poucos domínios
             serial = c.get("serial_number") or c.get("id")
             add_link(con, domain, "cert", serial)

@@ -179,17 +179,24 @@ def enrich(con, cfg, share=1.0):
 
 def tranco(con, cfg):
     step("Tráfego: ranking Tranco")
+    from radar.db import registrable
+    from radar.signatures import is_multitenant
     doms = [r["domain"] for r in con.execute("SELECT domain FROM domains")]
+    # O Tranco lista o domínio raiz (typeform.com), não o subdomínio (form.typeform.com).
+    apex = {d: registrable(d) for d in doms if not is_multitenant(d)}
     try:
-        ranks = sources.tranco_ranks(doms, os.path.join(os.path.dirname(cfg["db"]), "tranco.zip"))
+        ranks = sources.tranco_ranks(set(doms) | set(apex.values()),
+                                     os.path.join(os.path.dirname(cfg["db"]), "tranco.zip"))
     except Exception as e:
         print(f"  Tranco falhou: {e}")
         return
-    con.execute("UPDATE domains SET tranco_rank=NULL")
-    for d, rk in ranks.items():
-        update(con, d, tranco_rank=rk)
+    con.execute("UPDATE domains SET tranco_rank=NULL, tranco_apex=NULL")
+    for d in doms:
+        if d in ranks or apex.get(d) in ranks:
+            update(con, d, tranco_rank=ranks.get(d), tranco_apex=ranks.get(apex.get(d)))
     con.commit()
-    print(f"  {len(ranks)} domínios no top 1M")
+    print(f"  {sum(1 for d in doms if d in ranks)} domínios no top 1M "
+          f"({sum(1 for d in doms if apex.get(d) in ranks)} pelo domínio raiz)")
 
 
 def cleanup_links(con):
@@ -199,21 +206,34 @@ def cleanup_links(con):
     - Páginas mortas pelo título (estacionada, expirada...): fora do ar e sem os IDs
       de rastreamento do provedor, que ligariam domínios sem relação.
     """
-    from radar.signatures import DEAD_TITLE, valid_product_key
+    from radar.signatures import DEAD_TITLE, DEAD_URL, PARKING_IPS, is_catalog, valid_product_key
     bad = [r["value"] for r in con.execute("SELECT DISTINCT value FROM links WHERE kind='product'")
            if not valid_product_key(r["value"])]
     for v in bad:
         con.execute("DELETE FROM links WHERE kind='product' AND value=?", (v,))
     if bad:
         print(f"  {len(bad)} chaves de produto genéricas removidas")
-    dead = [r["domain"] for r in con.execute("SELECT domain, title FROM domains WHERE alive=1 AND title != ''")
-            if DEAD_TITLE.search(r["title"])]
+    dead = [r["domain"] for r in con.execute(
+                "SELECT domain, title, final_url, ip FROM domains WHERE alive=1 AND last_analyzed IS NOT NULL")
+            if DEAD_TITLE.search(r["title"] or "") or DEAD_URL.search(r["final_url"] or "")
+            or r["ip"] in PARKING_IPS]
     for d in dead:
         con.execute("UPDATE domains SET alive=0 WHERE domain=?", (d,))
         con.execute("""DELETE FROM links WHERE domain=? AND kind IN
                        ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','video')""", (d,))
     if dead:
         print(f"  {len(dead)} páginas mortas pelo título (estacionada, expirada, loja fechada...)")
+    neutral = [r["value"] for r in con.execute("SELECT DISTINCT value FROM links WHERE kind='redirect'")
+               if analyze.is_neutral_target(r["value"])]
+    for v in neutral:
+        con.execute("DELETE FROM links WHERE kind='redirect' AND value=?", (v,))
+    stores = [r["domain"] for r in con.execute(
+                  "SELECT domain, title, text_sample FROM domains WHERE COALESCE(store, 0)=0 AND text_sample IS NOT NULL")
+              if is_catalog(r["title"], r["text_sample"])]
+    for d in stores:
+        con.execute("UPDATE domains SET store=1 WHERE domain=?", (d,))
+    if stores:
+        print(f"  {len(stores)} lojas de catálogo marcadas")
     con.commit()
 
 

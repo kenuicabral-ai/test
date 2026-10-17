@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS domains(
   tranco_rank INTEGER, cluster_id INTEGER, score REAL, score_parts TEXT, stage TEXT,
   last_enriched TEXT, classified INTEGER, forca REAL, tracao REAL, trend REAL,
   domain_created TEXT, store INTEGER, stats_checked TEXT,
-  scan_uuid TEXT, scan_time TEXT, seen_title TEXT, witness_scan TEXT, gads_checked TEXT
+  scan_uuid TEXT, scan_time TEXT, seen_title TEXT, witness_scan TEXT, gads_checked TEXT,
+  tranco_apex INTEGER
 );
 CREATE TABLE IF NOT EXISTS links(
   domain TEXT, kind TEXT, value TEXT, PRIMARY KEY(domain, kind, value)
@@ -46,6 +47,7 @@ CREATE TABLE IF NOT EXISTS witness_links(
 
 # Página com tantos produtos no checkout é loja virtual, não oferta de resposta direta.
 STORE_MIN_PRODUCTS = 10
+STORE_MIN_CHECKOUT_LINKS = 20
 
 _HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$")
 
@@ -87,7 +89,7 @@ def connect(path):
     for col, decl in (("forca", "REAL"), ("tracao", "REAL"), ("trend", "REAL"),
                       ("domain_created", "TEXT"), ("store", "INTEGER"), ("stats_checked", "TEXT"),
                       ("scan_uuid", "TEXT"), ("scan_time", "TEXT"), ("seen_title", "TEXT"),
-                      ("witness_scan", "TEXT"), ("gads_checked", "TEXT")):
+                      ("witness_scan", "TEXT"), ("gads_checked", "TEXT"), ("tranco_apex", "INTEGER")):
         if col not in have:
             con.execute(f"ALTER TABLE domains ADD COLUMN {col} {decl}")
     if "store" not in have:  # marca as lojas já analisadas, sem esperar a próxima análise

@@ -74,6 +74,8 @@ VIDEO_PATTERNS = [
     rf"pandavideo[^\"'\s]*?[?&]v=({_UUID})",             # Panda embed ?v=<uuid>
     rf"panda[_-]({_UUID})",
     r"vidalytics[._/](?:embed[_/]|embed_)([A-Za-z0-9]{8,24})",  # Vidalytics embed id
+    rf"converteai\.net/{_UUID}/players/([0-9a-f]{{24}})",  # VTurb .../<conta>/players/<id>/player.js
+    rf"cdn\.converteai\.net/{_UUID}/([0-9a-f]{{24}})/",     # VTurb mídia (m3u8)
 ]
 
 
@@ -95,15 +97,20 @@ _SKIP_SEGMENTS = {"", "pt-br", "pt", "en", "es", "login", "static", "assets", "i
 _NOT_CHECKOUT_SUB = {"accounts", "help", "blog", "docs", "status"}
 # Arquivos da plataforma (script, estilo, imagem): mostram que a página usa o checkout,
 # mas não dizem qual produto. Sem isso, o mesmo script virava "produto" de 22 sites.
-_ASSET_SUB = {"assets", "static", "cdn"}
+_ASSET_SUB = {"assets", "static", "cdn", "tinder", "spark", "thumbor", "sockdrawer", "snowstorm",
+              "images"}
 _ASSET_EXT = {"js", "css", "png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "woff", "woff2",
               "ttf", "json", "map", "mp4"}
+
+
+_PLACEHOLDER_SEG = re.compile(r"seu-?link|your-?link|link-?aqui|seu-?produto|example", re.I)
 
 
 def valid_product_segment(seg: str) -> bool:
     """Um trecho de URL que identifica produto (não arquivo, não pasta genérica)."""
     return (bool(seg) and len(seg) >= 4 and "." not in seg and "asset" not in seg.lower()
-            and seg.lower() not in _SKIP_SEGMENTS)
+            and seg.lower() not in _SKIP_SEGMENTS and not seg.endswith("=")
+            and not _PLACEHOLDER_SEG.search(seg))
 
 # IDs de rastreamento: o que liga domínios da mesma operação. Cada um aparece no
 # código (fbq('init', ...)) e/ou na URL que o navegador pede (facebook.com/tr?id=...,
@@ -116,7 +123,21 @@ TRACKING = {
                 r"facebook\.com/tr/?\?(?:[^\"'\s<>]*?&(?:amp;)?)?id=(\d{12,20})"],
     "ttpixel": [r"ttq\.load\(\s*['\"]([A-Z0-9]{15,25})", r"analytics\.tiktok\.com/[^\"'\s]*?sdkid=([A-Z0-9]{15,25})"],
     "utmify": [r"pixelId\s*[=:]\s*['\"]([A-Za-z0-9]{16,32})"],
+    # Conta da VTurb que hospeda o vídeo: o mesmo produtor em todos os funis dele.
+    "vturb_acct": [rf"converteai\.net/({_UUID})/"],
 }
+# IDs que não identificam operação: exemplos de template e IDs de provedores
+# (Google Analytics das páginas de estacionamento da Hostinger e do WordPress.com).
+_PLACEHOLDER_ID = re.compile(r"^(?:GTM|G|UA|AW)-(?:X{4,}|1234\d*)", re.I)
+GENERIC_IDS = {"UA-26575989-44", "UA-52447-2"}
+
+
+def _real_id(kind, value):
+    if value in GENERIC_IDS or _PLACEHOLDER_ID.match(value):
+        return False
+    if kind == "fbpixel" and len(set(value)) < 3:
+        return False  # 111111111111111, 123123123123...
+    return True
 
 # Redes de anúncio: o pixel/script na página revela ONDE a oferta compra tráfego.
 # É o que diz em qual biblioteca de anúncios procurar os criativos.
@@ -286,11 +307,37 @@ DEAD_TITLE = re.compile(
     r"loja fechada|store (?:is )?closed|account (?:has been )?suspended|conta suspensa|"
     r"(?:domain|domínio) (?:is |está )?(?:for sale|à venda)|is for sale|parked domain|"
     r"(?:domain|domínio)(?: name)? (?:is |has |está |foi )?(?:been )?(?:expired|expirado)|"
-    r"domain (?:has )?expired|domínio expirou|"
+    r"domain (?:has )?expired|domínio expirou|domain name on hostinger|"
+    r"^\s*coming soon\b|coming soon page|^\s*under construction|em construção|"
+    r"\bshop (?:is )?closed|this store is unavailable|site is created successfully|"
+    r"takedown notice|^\s*project not found|suspected phishing|"
     r"\b404\b|page not found|página não encontrada",
     re.I,
 )
 DEAD_HTML = re.compile(r"ref=closed-store", re.I)
+# Destino final que denuncia página fora do ar (loja fechada, site bloqueado pela hospedagem).
+DEAD_URL = re.compile(r"^https?://[^/]+/(?:closed-store|blocked|coming-soon)\b", re.I)
+# IPs das páginas de estacionamento da Hostinger.
+PARKING_IPS = {"2.57.91.91", "2.57.91.92"}
+
+# Loja de catálogo (Shopify, CartPanda, Yampi...): não expõe 10 produtos no checkout,
+# mas tem a navegação de loja. Dois marcadores diferentes bastam.
+STORE_MARKERS = ("todos os produtos", "all products", "shop all", "rastrear pedido", "rastreie seu pedido",
+                 "track your order", "track order", "frete grátis acima", "minha conta", "my account",
+                 "meu carrinho", "create account", "criar conta", "adicionar ao carrinho", "add to cart")
+
+
+def is_catalog(title, text):
+    t = f"{title or ''} {text or ''}".lower()
+    return sum(1 for m in STORE_MARKERS if m in t) >= 2
+
+# Área de membros / login: página de quem já comprou (curso, comunidade), não a oferta.
+MEMBERS_TITLE = re.compile(
+    r"^\s*(?:sign in|log ?in|entrar|acessar|acesse sua conta)\b|sign in to view your content|"
+    r"área de membros|area de membros|members? area|member login|portal do aluno|"
+    r"\bmy courses\b|meus cursos",
+    re.I,
+)
 
 # Domínios de infraestrutura: nunca são "a oferta".
 INFRA = {
@@ -310,7 +357,28 @@ INFRA = {
     "everflow.io", "cometly.com", "taboola.com", "outbrain.com", "mgid.com",
     "clickfunnels.com", "systeme.io", "kajabi.com",
     "bit.ly", "linktr.ee", "urlscan.io", "crt.sh", "wordpress.com", "wixsite.com",
+    # Hosts das próprias plataformas de checkout/afiliação/tracking (não são a oferta).
+    "checkout-ds24.com", "ds25.io", "jvzoo.com", "clkmc.com", "clkmg.com", "clkmr.com",
+    "sparkbyclickbank.com", "explodely.com", "leadconnectorhq.com", "kartra.com",
+    "ticto.club", "ticto.dev", "ticto.link", "translate.goog",
 }
+
+# Hospedagens onde cada subdomínio é de um cliente diferente: o domínio raiz não diz
+# nada sobre a oferta (nem idade, nem Tranco, nem "mesma empresa").
+MULTITENANT = {
+    "pages.dev", "vercel.app", "netlify.app", "lovable.app", "github.io", "web.app",
+    "firebaseapp.com", "herokuapp.com", "onrender.com", "b-cdn.net", "workers.dev",
+    "myshopify.com", "wixsite.com", "blogspot.com", "wordpress.com", "carrd.co",
+    "framer.website", "webflow.io", "notion.site", "replit.app", "bolt.host", "chatgpt.site",
+    "arktrix.app", "plutio.com", "it.com", "xpages.co", "azurewebsites.net", "cloudfront.net",
+    "amazonaws.com", "appspot.com", "surge.sh", "mycartpanda.com", "ticto.club",
+    "onlineshopping.net.br", "hostingersite.com", "meusitehostgator.com.br",
+}
+
+
+def is_multitenant(domain: str) -> bool:
+    from .db import registrable
+    return registrable(domain) in MULTITENANT
 
 _URL_RE = re.compile(r"https?://[^\s\"'<>()\\]+", re.I)
 _TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
@@ -325,7 +393,7 @@ def is_infra(domain: str) -> bool:
 
 def _checkout_of(url: str):
     """(plataforma, chave do produto ou do produtor) de um link de checkout."""
-    from urllib.parse import parse_qs, urlparse
+    from urllib.parse import parse_qs, unquote, urlparse
     try:
         u = urlparse(url)
     except ValueError:
@@ -335,7 +403,7 @@ def _checkout_of(url: str):
         if not (host == base or host.endswith("." + base)):
             continue
         sub = host[:-len(base)].rstrip(".")
-        segs = [s for s in u.path.split("/") if s]
+        segs = [s for s in unquote(u.path).split("/") if s]
         if sub.split(".")[-1] in _NOT_CHECKOUT_SUB:
             return None
         if sub in ("", "www") and not segs and not u.query:
@@ -377,9 +445,16 @@ def _checkout_of(url: str):
     return None
 
 
+# Pastas de arquivos das plataformas que viraram "produto" em análises antigas
+# (thrivecart:vprod-..., samcart:pages-tracker, samcart:marketplace-...).
+_ASSET_SEGMENT = re.compile(r"^(?:vprod-|pages-tracker|marketplace-)", re.I)
+
+
 def valid_product_key(key: str) -> bool:
     """Filtra chaves antigas geradas antes das regras atuais (ex.: 'buygoods:secure')."""
     plat, _, seg = key.partition(":")
+    if _ASSET_SEGMENT.match(seg):
+        return False
     if plat in ("buygoods", "digistore24"):
         return seg.isdigit() and len(seg) >= 3
     if plat == "clickbank":
@@ -401,19 +476,20 @@ def extract(html: str) -> dict:
     """Extrai sinais de uma página HTML."""
     html = html or ""
     players = sorted(n for n, rx in PLAYERS.items() if re.search(rx, html, re.I))
-    checkouts, products, checkout_urls = set(), set(), []
+    checkouts, products, checkout_urls, checkout_links = set(), set(), [], set()
     for m in _URL_RE.finditer(html):
         url = m.group(0).rstrip(".,;")
         c = _checkout_of(url)
         if c:
             checkouts.add(c[0])
+            checkout_links.add(url.split("?")[0])
             if c[1]:
                 products.add(c[1])
             if len(checkout_urls) < 5 and url not in checkout_urls:
                 checkout_urls.append(url)
     tracking = {}
     for kind, rxs in TRACKING.items():
-        vals = sorted({v for rx in rxs for v in re.findall(rx, html)})
+        vals = sorted({v for rx in rxs for v in re.findall(rx, html) if _real_id(kind, v)})
         if vals:
             tracking[kind] = vals[:10]
     t = _TITLE_RE.search(html)
@@ -425,6 +501,9 @@ def extract(html: str) -> dict:
         "checkouts": sorted(checkouts),
         "products": sorted(products),
         "checkout_urls": checkout_urls,
+        # Links distintos para a plataforma de checkout (produtos, fotos de produto):
+        # loja tem dezenas ou centenas; funil de resposta direta tem poucos (kits, upsell).
+        "checkout_links": len(checkout_links),
         "tracking": tracking,
         "adnets": ad_networks(html),
         "trackers": trackers(html),
