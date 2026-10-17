@@ -127,7 +127,7 @@ def save(con, res):
     # A página pode ter mudado desde a última análise: troca os IDs pelos atuais.
     con.execute("""DELETE FROM links WHERE domain=? AND kind IN
                    ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','vturb_acct','adnet',
-                    'social','video')""", (d,))
+                    'social','video','heatmap')""", (d,))
     con.execute("DELETE FROM links WHERE domain=? AND kind='tracker'", (d,))
     if s.get("dead"):
         # Página de estacionamento/expirado: os IDs (GA, GTM) são do provedor de
@@ -148,6 +148,8 @@ def save(con, res):
         add_link(con, d, "adnet", n)
     for n in s.get("trackers", []):
         add_link(con, d, "tracker", n)
+    for n in s.get("heatmaps", []):
+        add_link(con, d, "heatmap", n)
     for v in s.get("videos", []):
         add_link(con, d, "video", v)
     # Histórico: registra cada pixel/vídeo/produto já visto no domínio (não é apagado),
