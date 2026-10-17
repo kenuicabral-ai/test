@@ -96,9 +96,14 @@ def run(con, cfg):
                            forca=NULL, tracao=NULL WHERE domain=?""", (r["domain"],))
             continue
         players = set(jl(r["players"]))
-        dates = [d for d in (_date(r["cert_first"]), _date(r["urlscan_first"]),
-                             _date(r["first_discovered"])) if d]
-        age = (t - min(dates)).days if dates else 0
+        # Idade: a data de registro do domínio (urlscan/WHOIS) quando conhecida. Certificados
+        # e varreduras anteriores a ela são do dono antigo de um domínio que foi revendido.
+        born = _date(r["domain_created"])
+        if not born:
+            dates = [d for d in (_date(r["cert_first"]), _date(r["urlscan_first"]),
+                                 _date(r["first_discovered"])) if d]
+            born = min(dates) if dates else t
+        age = max(0, (t - born).days)
         if r["ad_max_days"]:
             age = max(age, r["ad_max_days"])
         mom = _momentum(con, r["domain"], r)
@@ -221,8 +226,8 @@ def offers(con):
         top = members[0]
         alive = [m for m in members if m["alive"]]
         bonus = 3 * math.log2(len(alive)) if len(alive) > 1 else 0
-        firsts = [m["cert_first"] or m["urlscan_first"] or (m["first_discovered"] or "")[:10]
-                  for m in members]
+        firsts = [m["domain_created"] or m["cert_first"] or m["urlscan_first"]
+                  or (m["first_discovered"] or "")[:10] for m in members]
         firsts += [(dt.date.today() - dt.timedelta(days=m["ad_max_days"])).isoformat()
                    for m in members if m["ad_max_days"]]
         nets = sorted({n for m in members for n in adnet[m["domain"]]})

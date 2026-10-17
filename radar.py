@@ -56,14 +56,17 @@ DEFAULT_CONFIG = {
         "domain:samcart.com",
         "domain:thrivecart.com",
         "domain:digistore24.com",
-        # Nativos (advertoriais tipo 'CNN/CBS' e portais de notícia falsos).
-        "domain:taboola.com",
-        "domain:outbrain.com",
+        # Nativos: o pixel do ANUNCIANTE (advertoriais). "domain:taboola.com" trazia
+        # sobretudo portais de notícia que exibem os widgets, não quem compra tráfego.
+        'filename:"tfa.js"',  # Taboola Pixel
+        "domain:amplify.outbrain.com",  # Outbrain Pixel
         "domain:mgid.com",
     ],
-    "urlscan_windows": [[0, 3], [3, 7], [7, 14], [14, 30], [30, 60], [60, 120], [120, 180]],
-    "urlscan_max_per_query": 1000,
-    "urlscan_stats_sem_chave": 10,
+    "urlscan_max_per_query": 1000,  # máx. de varreduras por busca em cada leitura
+    "urlscan_first_days": 3,  # 1ª leitura de uma busca nova: últimos N dias
+    "urlscan_backfill_days": 180,  # histórico preenchido aos poucos até aqui
+    "urlscan_discovery_share": 0.5,  # fração da cota que o histórico pode usar
+    "urlscan_batch": 40,  # domínios/IPs por busca nas varreduras e na expansão
     "urlscan_interval": 2.0,
     "certstream_url": "wss://certstream.calidog.io/",
     "certstream_patterns": [
@@ -80,7 +83,7 @@ DEFAULT_CONFIG = {
     "enrich_days": 7,
     "rounds": 2,
     "ip_max_domains_urlscan": 15,
-    "ip_expand_max": 25,
+    "ip_expand_max": 400,
     "link_max_degree": 40,
     "max_minutes": 0,
     "weights": {},
@@ -119,7 +122,7 @@ def discover(con, cfg):
 
 
 def enrich(con, cfg, share=1.0):
-    step("Enriquecimento: idade (certificados), varreduras (urlscan), irmãos de certificado")
+    step("Enriquecimento: varreduras e idade (urlscan), certificados e irmãos (crt.sh)")
     cutoff = (dt.datetime.now() - dt.timedelta(days=cfg["enrich_days"])).isoformat()
     rows = [r for r in con.execute(
         "SELECT * FROM domains ORDER BY last_enriched IS NOT NULL, COALESCE(score, 0) DESC")
@@ -127,14 +130,23 @@ def enrich(con, cfg, share=1.0):
     print(f"  {len(rows)} ofertas para enriquecer")
     g = cfg.get("_deadline")
     deadline = time.time() + max(0, g - time.time()) * share if g else None
+    # urlscan em lotes: uma busca traz as varreduras de dezenas de domínios.
+    batch = cfg.get("urlscan_batch", 40)
+    doms = [r["domain"] for r in rows]
+    stats_ok = set()
+    for i in range(0, len(doms), batch):
+        if (deadline and time.time() > deadline) or not sources.urlscan_available():
+            break
+        stats_ok |= sources.urlscan_stats(con, doms[i:i + batch], cfg)
+        con.commit()
+    print(f"  varreduras do urlscan: {len(stats_ok)}/{len(doms)} domínios")
     new = done = 0
-    stats_left = cfg.get("urlscan_stats_sem_chave", 10)
     for i, r in enumerate(rows, 1):
         if deadline and time.time() > deadline:
             print(f"  tempo desta etapa esgotado; {len(rows) - i + 1} ficam para a próxima")
             break
-        if not sources.urlscan_available() and sources.BREAKER["crtsh_fail"] >= 3:
-            print(f"  urlscan e crt.sh indisponíveis; {len(rows) - i + 1} ficam para a próxima")
+        if sources.BREAKER["crtsh_fail"] >= 3:
+            print(f"  crt.sh indisponível; {len(rows) - i + 1} ficam para a próxima")
             break
         d = r["domain"]
         try:
@@ -142,13 +154,10 @@ def enrich(con, cfg, share=1.0):
                 if add_domain(con, sib, "grafo:cert"):
                     new += 1
                 add_link(con, sib, "cert", serial)
-            if cfg.get("urlscan_api_key") or stats_left > 0:
-                sources.urlscan_stats(con, d, cfg)
-                stats_left -= 1
         except Exception as e:
             print(f"  erro ao enriquecer {d}: {e}")
             continue
-        if sources.urlscan_available() and sources.BREAKER["crtsh_fail"] < 3:
+        if d in stats_ok and sources.BREAKER["crtsh_fail"] < 3:
             update(con, d, last_enriched=now())  # só marca se as duas fontes responderam
             done += 1
         if i % 20 == 0:
@@ -186,6 +195,7 @@ def cleanup_links(con):
 
 
 def finish(con, cfg, do_classify=True):
+    cleanup_links(con)
     step("Grafo de operações")
     graph.run(con, cfg)
     step("Score")
