@@ -1,0 +1,9 @@
+Configuração da rodada:
+  urlscan_api_key: configurada
+  publicwww_api_key: não configurada
+  anthropic_api_key: não configurada
+  proxy: não configurada
+  apify_token: configurada
+  serpapi_key: não configurada
+  apify: auto=0 anunciantes, 0 buscas
+  tempo máximo da rodada: 50 min, 48 análises em paralelo

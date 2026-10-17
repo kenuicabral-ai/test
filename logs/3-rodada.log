@@ -1,0 +1,148 @@
+
+== Descoberta: urlscan (páginas que carregam player/rastreamento de VSL) (18:29:20)
+  urlscan: 0 buscas disponíveis agora (dia 0/1000, hora 1000/1000)
+  urlscan sem cota; o resto da descoberta fica para a próxima rodada
+  total: 0 domínios novos pelo urlscan
+
+== Descoberta: crt.sh (certificados recentes por palavra) (18:29:21)
+  crt.sh [metodo]: 0 domínios novos
+  crt.sh [protocolo]: 0 domínios novos
+  crt.sh [segredo]: 0 domínios novos
+  crt.sh [emagrec]: 0 domínios novos
+  crt.sh [renda-extra]: 0 domínios novos
+
+== Análise das páginas (18:31:30)
+  analisando 2461 domínios (48 em paralelo)...
+  25/2461 analisados, 1 com VSL/checkout
+  50/2461 analisados, 5 com VSL/checkout
+  75/2461 analisados, 5 com VSL/checkout
+  100/2461 analisados, 7 com VSL/checkout
+  125/2461 analisados, 9 com VSL/checkout
+  150/2461 analisados, 12 com VSL/checkout
+  175/2461 analisados, 15 com VSL/checkout
+  200/2461 analisados, 16 com VSL/checkout
+  225/2461 analisados, 19 com VSL/checkout
+  250/2461 analisados, 25 com VSL/checkout
+  275/2461 analisados, 26 com VSL/checkout
+  300/2461 analisados, 33 com VSL/checkout
+  325/2461 analisados, 34 com VSL/checkout
+  350/2461 analisados, 36 com VSL/checkout
+  375/2461 analisados, 38 com VSL/checkout
+  400/2461 analisados, 42 com VSL/checkout
+  425/2461 analisados, 48 com VSL/checkout
+  450/2461 analisados, 53 com VSL/checkout
+  475/2461 analisados, 56 com VSL/checkout
+  500/2461 analisados, 59 com VSL/checkout
+  525/2461 analisados, 62 com VSL/checkout
+  550/2461 analisados, 65 com VSL/checkout
+  575/2461 analisados, 68 com VSL/checkout
+  600/2461 analisados, 68 com VSL/checkout
+  625/2461 analisados, 70 com VSL/checkout
+  650/2461 analisados, 73 com VSL/checkout
+  675/2461 analisados, 74 com VSL/checkout
+  700/2461 analisados, 75 com VSL/checkout
+  725/2461 analisados, 75 com VSL/checkout
+  750/2461 analisados, 78 com VSL/checkout
+  775/2461 analisados, 78 com VSL/checkout
+  800/2461 analisados, 79 com VSL/checkout
+  825/2461 analisados, 81 com VSL/checkout
+  850/2461 analisados, 85 com VSL/checkout
+  875/2461 analisados, 89 com VSL/checkout
+  900/2461 analisados, 91 com VSL/checkout
+  925/2461 analisados, 92 com VSL/checkout
+  950/2461 analisados, 94 com VSL/checkout
+  975/2461 analisados, 96 com VSL/checkout
+  1000/2461 analisados, 100 com VSL/checkout
+  1025/2461 analisados, 107 com VSL/checkout
+  1050/2461 analisados, 109 com VSL/checkout
+  1075/2461 analisados, 112 com VSL/checkout
+  1100/2461 analisados, 115 com VSL/checkout
+  1125/2461 analisados, 119 com VSL/checkout
+  1150/2461 analisados, 120 com VSL/checkout
+  1175/2461 analisados, 122 com VSL/checkout
+  1200/2461 analisados, 126 com VSL/checkout
+  1225/2461 analisados, 129 com VSL/checkout
+  1250/2461 analisados, 133 com VSL/checkout
+  1275/2461 analisados, 139 com VSL/checkout
+  1300/2461 analisados, 143 com VSL/checkout
+  1325/2461 analisados, 150 com VSL/checkout
+  1350/2461 analisados, 151 com VSL/checkout
+  1375/2461 analisados, 153 com VSL/checkout
+  1400/2461 analisados, 154 com VSL/checkout
+  1425/2461 analisados, 159 com VSL/checkout
+  1450/2461 analisados, 159 com VSL/checkout
+  1475/2461 analisados, 159 com VSL/checkout
+  1500/2461 analisados, 159 com VSL/checkout
+  1525/2461 analisados, 164 com VSL/checkout
+  1550/2461 analisados, 166 com VSL/checkout
+  1575/2461 analisados, 172 com VSL/checkout
+  1600/2461 analisados, 174 com VSL/checkout
+  1625/2461 analisados, 178 com VSL/checkout
+  1650/2461 analisados, 181 com VSL/checkout
+  1675/2461 analisados, 184 com VSL/checkout
+  1700/2461 analisados, 189 com VSL/checkout
+  1725/2461 analisados, 192 com VSL/checkout
+  1750/2461 analisados, 199 com VSL/checkout
+  concluído: 1751 analisados, 199 com VSL/checkout (710 ficaram para a próxima rodada)
+
+== Testemunha do urlscan: página real das ofertas com cloaking (19:00:49)
+  0 ofertas com página real só vista pelo urlscan; lendo até 300
+  varreduras lidas: 0; com player/checkout na página real: 0
+
+== Enriquecimento: varreduras e idade (urlscan), certificados e irmãos (crt.sh) (19:00:49)
+  11014 ofertas; varreduras pendentes: 10898, certificados pendentes: 10856
+  varreduras do urlscan: 0/10898 domínios
+  crt.sh: 3 falhas seguidas; consultas ao crt.sh pausadas nesta rodada.
+  crt.sh indisponível; 10840 certificados ficam para a próxima
+  certificados: 10; domínios-irmãos novos via certificado: 0
+
+== Expansão em grafo (rodada 1/2) (19:05:07)
+  (sem chave do PublicWWW: expansão por GTM/pixel/produto desativada)
+  expansão: 0 domínios novos (0 IPs consultados)
+
+== Análise do que ficou na fila (irmãos de certificado, expansão) (19:05:08)
+  analisando 727 domínios (48 em paralelo)...
+  25/727 analisados, 2 com VSL/checkout
+  50/727 analisados, 4 com VSL/checkout
+  75/727 analisados, 7 com VSL/checkout
+  100/727 analisados, 11 com VSL/checkout
+  125/727 analisados, 13 com VSL/checkout
+  150/727 analisados, 15 com VSL/checkout
+  175/727 analisados, 18 com VSL/checkout
+  200/727 analisados, 20 com VSL/checkout
+  225/727 analisados, 22 com VSL/checkout
+  250/727 analisados, 26 com VSL/checkout
+  275/727 analisados, 30 com VSL/checkout
+  300/727 analisados, 33 com VSL/checkout
+  325/727 analisados, 36 com VSL/checkout
+  350/727 analisados, 39 com VSL/checkout
+  375/727 analisados, 44 com VSL/checkout
+  400/727 analisados, 46 com VSL/checkout
+  425/727 analisados, 48 com VSL/checkout
+  450/727 analisados, 52 com VSL/checkout
+  475/727 analisados, 55 com VSL/checkout
+  500/727 analisados, 56 com VSL/checkout
+  525/727 analisados, 59 com VSL/checkout
+  550/727 analisados, 62 com VSL/checkout
+  concluído: 554 analisados, 62 com VSL/checkout (173 ficaram para a próxima rodada)
+
+== Enriquecimento: varreduras e idade (urlscan), certificados e irmãos (crt.sh) (19:14:32)
+  11022 ofertas; varreduras pendentes: 10906, certificados pendentes: 10854
+  varreduras do urlscan: 0/10906 domínios
+  crt.sh indisponível; 10854 certificados ficam para a próxima
+  certificados: 0; domínios-irmãos novos via certificado: 0
+
+== Tráfego: ranking Tranco (19:14:33)
+  baixando lista Tranco (~10 MB)...
+  6160 domínios no top 1M (9112 pelo domínio raiz)
+
+== Grafo de operações (19:14:36)
+  grafo: 32098 domínios em 28489 grupos (1579 operações com 2+ domínios)
+
+== Score (19:14:37)
+  score: 11022 ofertas pontuadas (ads=não, histórico=ainda não)
+
+== Relatório (19:14:41)
+  relatório: 10275 ofertas -> /home/runner/work/test/test/saida/ranking.html
+
+Pronto. Abra /home/runner/work/test/test/saida/ranking.html
