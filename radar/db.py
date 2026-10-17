@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS domains(
   tranco_rank INTEGER, cluster_id INTEGER, score REAL, score_parts TEXT, stage TEXT,
   last_enriched TEXT, classified INTEGER, forca REAL, tracao REAL, trend REAL,
   domain_created TEXT, store INTEGER, stats_checked TEXT,
-  scan_uuid TEXT, scan_time TEXT, seen_title TEXT, witness_scan TEXT
+  scan_uuid TEXT, scan_time TEXT, seen_title TEXT, witness_scan TEXT, gads_checked TEXT
 );
 CREATE TABLE IF NOT EXISTS links(
   domain TEXT, kind TEXT, value TEXT, PRIMARY KEY(domain, kind, value)
@@ -70,6 +70,14 @@ def norm_domain(value: str):
     return v if _HOST_RE.match(v) else None
 
 
+def registrable(host):
+    """'cb.oferta.com' -> 'oferta.com'; 'x.loja.com.br' -> 'loja.com.br'."""
+    parts = host.split(".")
+    if len(parts) >= 3 and parts[-2] in {"com", "net", "org", "gov", "edu", "co"} and len(parts[-1]) == 2:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
 def connect(path):
     con = sqlite3.connect(path, timeout=60)
     con.row_factory = sqlite3.Row
@@ -79,7 +87,7 @@ def connect(path):
     for col, decl in (("forca", "REAL"), ("tracao", "REAL"), ("trend", "REAL"),
                       ("domain_created", "TEXT"), ("store", "INTEGER"), ("stats_checked", "TEXT"),
                       ("scan_uuid", "TEXT"), ("scan_time", "TEXT"), ("seen_title", "TEXT"),
-                      ("witness_scan", "TEXT")):
+                      ("witness_scan", "TEXT"), ("gads_checked", "TEXT")):
         if col not in have:
             con.execute(f"ALTER TABLE domains ADD COLUMN {col} {decl}")
     if "store" not in have:  # marca as lojas já analisadas, sem esperar a próxima análise

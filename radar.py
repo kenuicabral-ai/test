@@ -33,6 +33,8 @@ DEFAULT_CONFIG = {
     "apify_searches": [],  # URLs da Biblioteca, page_ids, ou {q, country}
     "apify_auto_advertisers": 0,  # puxa os anúncios dos N anunciantes já achados
     "apify_limit": 200,
+    "serpapi_key": "",  # Google Ads Transparency pela SerpApi (pago por busca); vazio = desligado
+    "serpapi_max": 10,  # ofertas consultadas por rodada
     "anthropic_model": "claude-haiku-5-5",
     "urlscan_queries": [
         # Players de VSL (o funil carrega o player).
@@ -237,6 +239,9 @@ def cmd_run(con, cfg, args):
     analyze.run(con, cfg, render=args.render, limit=args.limite)
     step("Testemunha do urlscan: página real das ofertas com cloaking")
     witness.run(con, cfg)
+    if cfg.get("serpapi_key"):
+        step("Anúncios no Google/YouTube (SerpApi, opcional)")
+        print(f"  {sources.google_ads_fetch(con, cfg)} ofertas consultadas")
     enrich(con, cfg, share=0.5)  # idade e varreduras das ofertas (metade do tempo restante)
     for i in range(cfg["rounds"]):
         step(f"Expansão em grafo (rodada {i + 1}/{cfg['rounds']})")

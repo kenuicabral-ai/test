@@ -257,6 +257,22 @@ def ad_library_url(fb=None, fb_id=None, brand=None, country="BR"):
     return ""
 
 
+def google_ads_url(domain, region="anywhere"):
+    """Google Ads Transparency Center pelo domínio: anúncios no Google e no YouTube
+    que levam a ele. É exato (não depende de achar o anunciante)."""
+    from urllib.parse import quote
+
+    from .db import registrable
+    return f"https://adstransparency.google.com/?region={region}&domain={quote(registrable(domain))}"
+
+
+def tiktok_ads_url(name):
+    """Biblioteca do TikTok pelo nome do anunciante. Só cobre anúncios exibidos na
+    Europa (exigência da DSA); fora dela pode não mostrar nada."""
+    from urllib.parse import quote
+    return f"https://library.tiktok.com/ads?region=all&adv_name={quote(name)}" if name else ""
+
+
 # Palavras típicas de VSL/advertorial (sinal fraco, só reforça).
 VSL_TEXT = re.compile(
     r"assista|até o final|vídeo abaixo|video below|watch (?:this|the) video|"

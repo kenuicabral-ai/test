@@ -97,11 +97,16 @@ def line(i, o):
     forca = f"F{o['forca']}" if o.get("forca") else ""
     tracao = f"T{o['tracao']}" if o.get("tracao") else ""
     ft = (" (" + " ".join(x for x in (forca, tracao) if x) + ")") if (forca or tracao) else ""
-    adv = ""
+    ads = []
     if o.get("biblioteca_anuncios"):
-        adv = f"\n    📢 <a href=\"{e(o['biblioteca_anuncios'])}\">anúncios de {e(o.get('anunciante') or 'anunciante')}</a>"
+        ads.append(f"<a href=\"{e(o['biblioteca_anuncios'])}\">Meta: {e(o.get('anunciante') or 'anunciante')}</a>")
     elif o.get("whatsapp"):
-        adv = f"\n    📱 <a href=\"{e(o['whatsapp'])}\">{e(o.get('anunciante') or 'whatsapp')}</a>"
+        ads.append(f"<a href=\"{e(o['whatsapp'])}\">{e(o.get('anunciante') or 'whatsapp')}</a>")
+    if o.get("anuncios_google") and "google" in (o.get("trafego") or ""):
+        ads.append(f"<a href=\"{e(o['anuncios_google'])}\">Google</a>")
+    if o.get("anuncios_tiktok"):
+        ads.append(f"<a href=\"{e(o['anuncios_tiktok'])}\">TikTok</a>")
+    adv = ("\n    📢 " + " · ".join(ads)) if ads else ""
     return (f"{i}. <b>{e(o['score'])}</b>{ft} · <a href=\"https://{e(o['dominio_principal'])}\">"
             f"{e(o['dominio_principal'])}</a>\n    {e(' · '.join(b for b in bits if b))}"
             + (f"\n    <i>{e(title)}</i>" if title else "") + adv)

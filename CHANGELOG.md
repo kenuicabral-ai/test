@@ -2,6 +2,16 @@
 
 Mudanças do radar, da mais recente para a mais antiga. Cada entrada diz o que mudou, por quê (o que os dados mostraram) e como foi verificado.
 
+## 2026-10-17 — Anúncios de cada oferta: links oficiais por rede e Google por API opcional (PR #4)
+
+**Por quê:** só 463 das 12.236 ofertas tinham link para a Biblioteca da Meta (precisa achar o anunciante na página), e nenhuma tinha caminho para os anúncios no Google/YouTube ou no TikTok, mesmo quando o pixel dessas redes estava na página.
+
+- Coluna **Ver anúncios** (ranking.html, CSV e Telegram): Meta pelo anunciante; **Google Ads Transparency Center pelo domínio** (exato, cobre Google e YouTube, funciona sem achar o anunciante); TikTok pelo nome do anunciante quando o pixel do TikTok está na página (a biblioteca do TikTok só cobre anúncios na Europa).
+- Conector **opcional e desligado** do Google Ads Transparency via SerpApi (pago por busca): só roda com o secret `SERPAPI_KEY`, até `SERPAPI_MAX` (10) ofertas por rodada. Traz nº de anúncios, dias no ar do mais antigo, vídeos e o anunciante verificado pelo Google.
+- Correção no score: bastava um domínio ter dado de anúncio para os pilares de anúncio entrarem na Tração de todos, puxando para baixo quem nunca foi consultado. Agora contam só para quem foi consultado.
+
+**Verificado:** 33 testes (SerpApi simulada: sem chave não chama nada; 429 para na hora; consultado não é refeito na semana). Links conferidos no ranking do banco de produção.
+
 ## 2026-10-17 — Testemunha do urlscan lê a página real das ofertas com cloaking (PR #3)
 
 **Por quê:** com cloaking por IP, a nossa visita (servidor do GitHub, IP de datacenter) cai na página isca e a oferta perde player, pixel e checkout no ranking. Ofertas reais como `myslimtide.com`, `trysciaticyl.com` e `sodaslim.com` apareciam sem nada disso, embora o urlscan tivesse visto a página real ("home - SlimTide").

@@ -52,6 +52,8 @@ jobs:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
           APIFY_SEARCHES: ${{ vars.APIFY_SEARCHES }}
           APIFY_AUTO: ${{ vars.APIFY_AUTO }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          SERPAPI_MAX: ${{ vars.SERPAPI_MAX }}
           RADAR_MAX_MINUTES: ${{ vars.RADAR_MAX_MINUTES }}
         run: |
           mkdir -p logs

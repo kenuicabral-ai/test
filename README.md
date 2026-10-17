@@ -30,6 +30,7 @@ Secrets do repositório (**Settings → Secrets and variables → Actions**):
 | `URLSCAN_API_KEY` | recomendado | Chave gratuita do urlscan.io |
 | `PUBLICWWW_API_KEY` | opcional | Liga a expansão por GTM, Pixel e produto |
 | `ANTHROPIC_API_KEY` | opcional | Classifica nicho e promessa |
+| `SERPAPI_KEY` | opcional, pago | Lê os anúncios do Google/YouTube de cada oferta (veja abaixo) |
 
 - **Rodar na hora:** aba **Actions → Radar de Ofertas → Run workflow**.
 - **Ver os dados no GitHub:** branch `dados`, arquivo `saida/ranking_ofertas.csv` (o GitHub mostra como tabela).
@@ -107,6 +108,16 @@ Os anúncios do Apify entram no mesmo score (idade, vídeo, volume) e já trazem
 
 Na mão, sem API: `python radar.py apify` (com `apify_token` no config.json).
 
+### Anúncios no Google e no YouTube (opcional, pago): SerpApi
+
+O Google Ads Transparency Center mostra todos os anúncios que levam a um domínio. O ranking já traz o link dele em cada oferta (coluna **Ver anúncios → Google**, de graça). Para o radar ler esses anúncios sozinho e usar no score (quantos anúncios, há quantos dias o mais antigo está no ar, quantos são vídeo, e o anunciante verificado pelo Google), ligue a SerpApi:
+
+1. Crie conta em serpapi.com (cobra por busca; tem plano gratuito pequeno) e copie a API key.
+2. Secret `SERPAPI_KEY` em **Settings → Secrets and variables → Actions**.
+3. Opcional: variável `SERPAPI_MAX` = quantas ofertas consultar por rodada (padrão 10: as de maior nota que têm o pixel/tag do Google).
+
+Sem `SERPAPI_KEY`, nada disso roda e nada é cobrado. Ofertas não consultadas não perdem pontos por falta desse dado.
+
 ### Juntar com outros bancos de anúncios (AdHeart, BigSpy, Dropispy, Minea…)
 
 ```bash
@@ -150,6 +161,8 @@ Página fora do ar perde 75% do score. Conta como fora do ar também a página q
 A coluna **Anunciante** já resolve isso na maioria dos casos: o sistema lê o Facebook, o Instagram e o WhatsApp que a própria página do funil expõe e, quando acha o Facebook, monta um link que abre **todos os anúncios ativos daquele anunciante** na Biblioteca da Meta (pelo ID numérico da página quando disponível, senão por busca). É o caminho certo, porque a Biblioteca não busca por URL de destino, só por anunciante. O ID do pixel da Meta não serve: ele identifica o pixel, não a página, e não há como converter um no outro.
 
 O arquivo **`anunciantes.csv`** junta tudo por anunciante: cada operador achado, o link que abre os anúncios dele, e as ofertas que ele roda. Use-o como **lista de trabalho da extensão**: em vez de buscar palavras ao acaso, abra os anúncios de cada anunciante (a Biblioteca é exaustiva por página) e deixe a extensão colher os destinos — que voltam para o radar e revelam os outros domínios do mesmo operador. É o ciclo que cresce sozinho.
+
+A coluna **Ver anúncios** junta os links oficiais por rede: **Meta** (pelo anunciante, quando achado), **Google** (Ads Transparency Center pelo domínio: exato, cobre Google e YouTube, funciona mesmo sem achar o anunciante) e **TikTok** (pelo nome do anunciante, quando o pixel do TikTok está na página; a biblioteca do TikTok só cobre anúncios exibidos na Europa).
 
 Quando a coluna Anunciante estiver vazia, caia para a coluna **Tráfego**:
 

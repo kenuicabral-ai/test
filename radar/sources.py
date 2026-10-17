@@ -17,7 +17,7 @@ import zipfile
 from urllib.parse import quote
 
 from . import net
-from .db import add_domain, add_link, norm_domain, update
+from .db import add_domain, add_link, norm_domain, registrable, update
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"
 
@@ -416,13 +416,6 @@ def crtsh(domain, cfg):
     return None
 
 
-def _registrable(host):
-    parts = host.split(".")
-    if len(parts) >= 3 and parts[-2] in {"com", "net", "org", "gov", "edu", "co"} and len(parts[-1]) == 2:
-        return ".".join(parts[-3:])
-    return ".".join(parts[-2:])
-
-
 def cert_history(con, domain, cfg):
     """Idade (1º certificado), vida (último) e irmãos no mesmo certificado.
 
@@ -438,10 +431,10 @@ def cert_history(con, domain, cfg):
     update(con, domain, cert_first=befores[0] if befores else None,
            cert_last=befores[-1] if befores else None, cert_count=len(serials))
     siblings = set()
-    mine = _registrable(domain)
+    mine = registrable(domain)
     for c in certs:
         names = {norm_domain(n) for n in (c.get("name_value") or "").split("\n")}
-        regs = {_registrable(n) for n in names if n}
+        regs = {registrable(n) for n in names if n}
         if len(regs) > 1 and len(regs) <= 20:  # certificado compartilhado por poucos domínios
             serial = c.get("serial_number") or c.get("id")
             add_link(con, domain, "cert", serial)
@@ -732,6 +725,66 @@ def apify_fetch(con, cfg):
                 _accum_apify(agg, it)
         log(f"  apify [{url[:60]}...]: {len(items or [])} anúncios, {len(agg) - n} destinos novos")
     return _apply_ads(con, agg, "apify")
+
+
+# ------------------------------------------------------------------ Google Ads (SerpApi)
+def google_ads_fetch(con, cfg):
+    """Anúncios no Google e no YouTube que levam a cada oferta (Google Ads Transparency
+    Center, pela API da SerpApi).
+
+    Opcional e pago (a SerpApi cobra por busca): só roda com serpapi_key, no máximo
+    serpapi_max ofertas por rodada, as de maior nota que têm o pixel/tag do Google.
+    Traz quantos anúncios levam ao domínio, há quantos dias o mais antigo está no ar,
+    quantos são vídeo e o anunciante verificado pelo Google.
+    """
+    from .db import now
+    key = cfg.get("serpapi_key")
+    if not key:
+        return 0
+    cutoff = (dt.datetime.now() - dt.timedelta(days=cfg.get("enrich_days", 7))).isoformat()
+    rows = [r["domain"] for r in con.execute(
+        """SELECT d.domain FROM domains d WHERE d.score IS NOT NULL AND d.alive = 1
+           AND EXISTS(SELECT 1 FROM links l WHERE l.domain = d.domain AND l.kind = 'adnet'
+                      AND l.value = 'google')
+           AND (d.gads_checked IS NULL OR d.gads_checked < ?)
+           ORDER BY d.score DESC LIMIT ?""", (cutoff, cfg.get("serpapi_max", 10)))]
+    done = 0
+    for d in rows:
+        try:
+            r = net.get("https://serpapi.com/search.json", timeout=60, min_interval=1.0, params={
+                "engine": "google_ads_transparency_center", "text": registrable(d), "api_key": key})
+        except Exception as e:
+            log(f"  serpapi falhou: {e}")
+            break
+        if r.status_code in (401, 403, 429):
+            log(f"  serpapi {r.status_code}: chave inválida ou créditos esgotados; parando")
+            break
+        if r.status_code != 200:
+            continue
+        try:
+            data = r.json()
+        except ValueError:
+            continue
+        ads = [a for a in data.get("ad_creatives") or [] if isinstance(a, dict)]
+        total = (data.get("search_information") or {}).get("total_results") or len(ads)
+        row = con.execute("SELECT ad_count, ad_video, ad_max_days FROM domains WHERE domain=?",
+                          (d,)).fetchone()
+        update(con, d, gads_checked=now(),
+               ad_count=max(int(total), row["ad_count"] or 0),
+               ad_video=max(sum(1 for a in ads if (a.get("format") or "").lower() == "video"),
+                            row["ad_video"] or 0),
+               ad_max_days=max(max((int(a.get("total_days_shown") or 0) for a in ads), default=0),
+                               row["ad_max_days"] or 0))
+        for aid, name in sorted({(a.get("advertiser_id"), a.get("advertiser")) for a in ads
+                                 if a.get("advertiser_id")})[:3]:
+            add_link(con, d, "social", f"gads_id:{aid}")
+            if name:
+                add_link(con, d, "social", f"gads:{str(name)[:80]}")
+        done += 1
+        log(f"  google ads [{d}]: {total} anúncios, o mais antigo há "
+            f"{max((int(a.get('total_days_shown') or 0) for a in ads), default=0)} dias")
+    con.commit()
+    return done
 
 
 def import_seeds(con, path, source="manual"):

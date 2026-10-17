@@ -17,6 +17,9 @@ cfg.update({
     # Apify é opcional e pago: só roda se VOCÊ pedir (APIFY_AUTO=N ou APIFY_SEARCHES).
     # Ter o token não gasta nada sozinho.
     "apify_auto_advertisers": int(os.environ.get("APIFY_AUTO") or 0),
+    # Google Ads Transparency pela SerpApi: opcional e pago; só com o secret SERPAPI_KEY.
+    "serpapi_key": os.environ.get("SERPAPI_KEY", ""),
+    "serpapi_max": int(os.environ.get("SERPAPI_MAX") or 10),
     # Análise é espera de rede: mais conexões em paralelo, e página que não responde
     # em 15 s fica para a próxima (a fila chegou a 23 mil domínios numa rodada).
     "workers": 48,
@@ -31,7 +34,7 @@ with open(path, "w", encoding="utf-8") as f:
     json.dump(cfg, f, indent=2, ensure_ascii=False)
 
 print("Configuração da rodada:")
-for k in ("urlscan_api_key", "publicwww_api_key", "anthropic_api_key", "proxy", "apify_token"):
+for k in ("urlscan_api_key", "publicwww_api_key", "anthropic_api_key", "proxy", "apify_token", "serpapi_key"):
     print(f"  {k}: {'configurada' if cfg[k] else 'não configurada'}")
 print(f"  apify: auto={cfg['apify_auto_advertisers']} anunciantes, {len(cfg['apify_searches'])} buscas")
 print(f"  tempo máximo da rodada: {cfg['max_minutes']} min, {cfg['workers']} análises em paralelo")
