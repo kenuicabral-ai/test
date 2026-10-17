@@ -236,7 +236,8 @@ _IG_SKIP = {"p", "reel", "reels", "explore", "accounts", "about", "developer", "
 _FB_HANDLE = re.compile(r"(?:https?:)?//(?:www\.|m\.|web\.|pt-br\.)?(?:facebook|fb)\.com/"
                         r"([A-Za-z0-9.][A-Za-z0-9.\-]{2,59})(?=[\"'/?#]|\\|$)", re.I)
 _FB_NUM = re.compile(r"(?:view_all_page_id=|profile\.php\?id=|/pages/[^/\"']+/|/people/[^/\"']+/"
-                     r"|[\"']?page_id[\"']?\s*[:=]\s*[\"']?)(\d{9,20})", re.I)
+                     r"|facebook\.com/[A-Za-z0-9.\-]+-|"  # facebook.com/Nome-Da-Pagina-123456789
+                     r"[\"']?(?:page_?id|pageid|fb_page_id)[\"']?\s*[:=]\s*[\"']?)(\d{9,20})", re.I)
 _IG_HANDLE = re.compile(r"(?:https?:)?//(?:www\.)?instagram\.com/([A-Za-z0-9._]{2,40})(?=[\"'/?#]|\\|$)", re.I)
 _WA = re.compile(r"(?:wa\.me/|(?:api|web)\.whatsapp\.com/send\?phone=|whatsapp\.com/send\?phone=)"
                  r"\+?(\d{10,15})", re.I)
@@ -245,6 +246,36 @@ _CNPJ = re.compile(r"\b(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})\b")
 _EMAIL = re.compile(r"\b([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})\b")
 _EMAIL_SKIP = ("sentry", "example.", "wix", "godaddy", "cloudflare", "domain.com",
                "email.com", "seudominio", "your", "@2x", ".png", ".jpg", ".webp")
+
+
+# Títulos que não são nome de produto (página sem título, template, área logada).
+_GENERIC_TITLE = {"home", "índice", "index", "untitled", "document", "blog", "loja",
+                  "página inicial", "pagina inicial", "my wordpress blog", "wordpress",
+                  "dashboard", "entrar", "login", "vsl", "lp", "landing page", "oferta",
+                  "obrigado", "checkout", "página", "pagina", "site", "novo site"}
+# Rótulos de etapa que vêm colados no nome do produto no título.
+_TITLE_NOISE = re.compile(r"\b(vsl|lp|spv|v\d+|home|oficial|official|comprar|checkout|"
+                          r"advertorial|quiz|pre?sell|presell|funil)\b", re.I)
+
+
+def product_name(title: str) -> str:
+    """Nome do produto a partir do título da VSL, para buscar na Biblioteca de Anúncios.
+
+    Vazio quando o título é genérico, quebrado (encoding) ou não dá um termo útil.
+    'VSL - Linfozen' -> 'Linfozen'; 'VitalFlush VSL' -> 'VitalFlush'.
+    """
+    t = _unescape(title or "")
+    if "�" in t or re.search(r"[ÃâÂ][\x80-\xbf ]", t):  # mojibake: termo ruim, melhor nada
+        return ""
+    # Pedaços entre separadores (–, -, |, ·, —, :); fica o primeiro que vira um nome útil.
+    for raw in re.split(r"\s*[\|\u2013\u2014\u00b7:–—-]\s*", t):
+        seg = _TITLE_NOISE.sub(" ", raw)
+        seg = re.sub(r"[®™©]+", " ", seg)
+        seg = re.sub(r"\s+", " ", seg).strip(" -–—|·:.")
+        if (3 <= len(seg) <= 50 and seg[0].isalpha() and seg.lower() not in _GENERIC_TITLE
+                and sum(c.isalpha() for c in seg) >= 3):
+            return seg
+    return ""
 
 
 def advertiser(html: str) -> dict:
@@ -279,21 +310,23 @@ def advertiser(html: str) -> dict:
     return out
 
 
-def ad_library_url(fb=None, fb_id=None, brand=None, country="BR"):
-    """Link que abre os anúncios do anunciante na Biblioteca da Meta.
+def ad_library_url(fb=None, fb_id=None, brand=None, product=None, country="BR"):
+    """Link para a Biblioteca de Anúncios da Meta e o tipo do link (quão exato ele é).
 
-    Com o ID numérico da página, abre TODOS os anúncios ativos dela (exaustivo).
-    Sem o ID, cai para busca pelo @ do Facebook ou pela marca (aproximado).
+    Retorna (url, tipo): 'pagina' abre TODOS os anúncios ativos do anunciante (exato,
+    pelo ID numérico ou @); 'busca' é uma busca por palavra (marca ou nome do produto),
+    um ponto de partida quando não achamos o anunciante mas sabemos que ele anuncia.
     """
     base = "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&media_type=all"
-    if fb_id:
-        return f"{base}&country={country}&view_all_page_id={fb_id}"
     from urllib.parse import quote
+    if fb_id:
+        return f"{base}&country={country}&view_all_page_id={fb_id}", "pagina"
     if fb:
-        return f"{base}&country={country}&q={quote(fb)}&search_type=page"
-    if brand:
-        return f"{base}&country={country}&q={quote(brand)}&search_type=keyword_unordered"
-    return ""
+        return f"{base}&country={country}&q={quote(fb)}&search_type=page", "pagina"
+    term = brand or product
+    if term:
+        return f"{base}&country={country}&q={quote(term)}&search_type=keyword_unordered", "busca"
+    return "", ""
 
 
 def google_ads_url(domain, region="anywhere"):

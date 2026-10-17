@@ -17,7 +17,7 @@ from collections import defaultdict
 
 from .analyze import is_offer, refresh_seen
 from .db import jl, today
-from .signatures import STRONG_PLAYERS, ad_library_url, google_ads_url, tiktok_ads_url
+from .signatures import STRONG_PLAYERS, ad_library_url, google_ads_url, product_name, tiktok_ads_url
 
 FORCA_W = {"checkout": 15, "player_forte": 12, "player": 5, "texto_vsl": 3,
            "cloaking": 6, "trafego_pago": 10, "omnichannel": 5, "tracker_pro": 9, "operacao": 9,
@@ -336,7 +336,9 @@ def offers(con):
             "tracker": ", ".join(trks),
             "heatmap": ", ".join(hts),
             "anunciante": anunciante,
-            "biblioteca_anuncios": ad_library_url(soc.get("fb"), soc.get("fb_id"), soc.get("brand")),
+            **(lambda u, tp: {"biblioteca_anuncios": u, "biblioteca_tipo": tp})(
+                *ad_library_url(soc.get("fb"), soc.get("fb_id"), soc.get("brand"),
+                                product_name(top["seen_title"] or top["title"] or "") if "meta" in nets else None)),
             # Google/YouTube: exato pelo domínio. TikTok: pelo nome do anunciante, se roda lá.
             "anuncios_google": (f"https://adstransparency.google.com/advertiser/{soc['gads_id']}?region=anywhere"
                                 if soc.get("gads_id") else google_ads_url(top["domain"])),

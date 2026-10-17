@@ -150,3 +150,40 @@ def test_store_by_image_links_even_without_product_keys(con):
     r = con.execute("SELECT store FROM domains").fetchone()
     assert r["store"] == 1
     assert con.execute("SELECT COUNT(*) FROM links WHERE kind='product'").fetchone()[0] <= 1
+
+
+def test_meta_search_link_by_product_when_advertiser_unknown(con):
+    from radar import score, graph
+    vsl = '<script src="https://scripts.converteai.net/p.js"></script><script>fbq("init","123456789012345")</script>'
+    # Anuncia na Meta (pixel), mas não expõe o Facebook do anunciante: cai na busca por produto.
+    _analyzed(con, "linfozen-oferta.com", "<title>VSL - Linfozen</title>" + vsl
+              + '<a href="https://pay.hotmart.com/A1">c</a>')
+    graph.run(con, {})
+    score.run(con, {})
+    o = score.offers(con)[0]
+    assert o["biblioteca_tipo"] == "busca"
+    assert "q=Linfozen" in o["biblioteca_anuncios"] and "keyword_unordered" in o["biblioteca_anuncios"]
+
+
+def test_no_meta_pixel_no_search_link(con):
+    from radar import score, graph
+    vsl = '<script src="https://scripts.converteai.net/p.js"></script>'
+    _analyzed(con, "semmeta.com", "<title>VSL - ProdutoX</title>" + vsl
+              + '<a href="https://pay.hotmart.com/A1">c</a>')
+    graph.run(con, {})
+    score.run(con, {})
+    o = score.offers(con)[0]
+    assert o["biblioteca_anuncios"] == "" and o["biblioteca_tipo"] == ""
+
+
+def test_numeric_page_id_gives_exact_link(con):
+    from radar import score, graph
+    vsl = '<script src="https://scripts.converteai.net/p.js"></script>'
+    _analyzed(con, "comid.com", "<title>VSL - Y</title>" + vsl
+              + '<a href="https://www.facebook.com/MinhaPagina-100087654321099">fb</a>'
+              + '<a href="https://pay.hotmart.com/A1">c</a>')
+    graph.run(con, {})
+    score.run(con, {})
+    o = score.offers(con)[0]
+    assert o["fb_id"] == "100087654321099" and o["biblioteca_tipo"] == "pagina"
+    assert "view_all_page_id=100087654321099" in o["biblioteca_anuncios"]

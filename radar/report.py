@@ -80,7 +80,7 @@ def _advertisers(offs):
         fb_id = handle_id.get(top.get("fb")) or top.get("fb_id")
         out.append({
             "anunciante": top["anunciante"],
-            "biblioteca_anuncios": ad_library_url(top.get("fb"), fb_id, top.get("marca")),
+            "biblioteca_anuncios": ad_library_url(top.get("fb"), fb_id, top.get("marca"))[0],
             "facebook": f"https://facebook.com/{top['fb']}" if top.get("fb") else "",
             "instagram": top.get("instagram", ""),
             "whatsapp": top.get("whatsapp", ""),
@@ -108,7 +108,8 @@ def _trend_cell(t):
 def _adv_cell(o, e):
     """Célula do anunciante: link para a Biblioteca de Anúncios quando há Facebook."""
     if o.get("biblioteca_anuncios"):
-        return f"<a href='{e(o['biblioteca_anuncios'])}'>{e(o['anunciante'] or 'ver anúncios')}</a>"
+        rotulo = o.get("anunciante") or ("buscar na Meta" if o.get("biblioteca_tipo") == "busca" else "ver anúncios")
+        return f"<a href='{e(o['biblioteca_anuncios'])}'>{e(rotulo)}</a>"
     if o.get("whatsapp"):
         return f"<a href='{e(o['whatsapp'])}'>{e(o['anunciante'] or 'whatsapp')}</a>"
     return e(o.get("anunciante") or "")
@@ -116,7 +117,8 @@ def _adv_cell(o, e):
 
 def _ads_cell(o, e):
     """Links oficiais dos anúncios por rede: Meta (anunciante), Google (domínio), TikTok."""
-    links = [(o.get("biblioteca_anuncios"), "Meta"), (o.get("anuncios_google"), "Google"),
+    links = [(o.get("biblioteca_anuncios"), "Meta" if o.get("biblioteca_tipo") != "busca" else "Meta (busca)"),
+             (o.get("anuncios_google"), "Google"),
              (o.get("anuncios_tiktok"), "TikTok")]
     return " · ".join(f"<a href='{e(u)}'>{n}</a>" for u, n in links if u)
 
@@ -252,7 +254,7 @@ function domsOf(o){return (o.lista_dominios||o.dominio_principal||'').split(' | 
 function selectedDomains(){return [...new Set([...sel].flatMap(k=>byKey[k]?domsOf(byKey[k]):[]))]}
 function esc(v){return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function color(x){return x>=60?'var(--hot)':x>=40?'var(--warm)':x>=20?'var(--acc)':'var(--mute)'}
-function ads(o){return [[o.biblioteca_anuncios,'Meta'],[o.anuncios_google,'Google'],[o.anuncios_tiktok,'TikTok']].filter(x=>x[0]).map(([u,n])=>`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${n}</a>`).join(' · ')}
+function ads(o){return [[o.biblioteca_anuncios,o.biblioteca_tipo==='busca'?'Meta (busca)':'Meta'],[o.anuncios_google,'Google'],[o.anuncios_tiktok,'TikTok']].filter(x=>x[0]).map(([u,n])=>`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${n}</a>`).join(' · ')}
 function trend(t){if(t==null)return '<span class="doms">—</span>';if(t>1)return `<span style="color:var(--ok)">↑ ${t}</span>`;if(t<-1)return `<span style="color:var(--hot)">↓ ${t}</span>`;return '<span class="doms">→</span>'}
 function updateCopy(){const n=selectedDomains().length;document.getElementById('copydoms').textContent=`Copiar domínios (${sel.size} ofertas · ${n} domínios)`}
 function head(){document.getElementById('hd').innerHTML='<th><input type="checkbox" id="selall" title="marcar os visíveis"></th>'+COLS.map(([l,k])=>`<th data-k="${k}">${l}${k===sortK?(dir<0?' ▼':' ▲'):''}</th>`).join('');
