@@ -139,3 +139,14 @@ def test_ad_library_links_per_network(con):
     assert "search_type=page" in o["biblioteca_anuncios"]
     cell = report._ads_cell(o, lambda x: x)
     assert cell.count("<a ") == 3 and "Google" in cell and "TikTok" in cell
+
+
+def test_store_by_image_links_even_without_product_keys(con):
+    """Fotos de produto da CartPanda vêm com token assinado (HMAC), que não é produto,
+    mas dezenas delas denunciam a loja (37 das 41 lojas do banco eram assim)."""
+    imgs = "".join(f'<img src="https://loja.mycartpanda.com/thumbor/a{i}b{i}c{i}d{i}e{i}=/600x0/p{i}.jpg">'
+                   for i in range(30))
+    _analyzed(con, "loja-fotos.com.br", "<title>Loja</title>" + imgs)
+    r = con.execute("SELECT store FROM domains").fetchone()
+    assert r["store"] == 1
+    assert con.execute("SELECT COUNT(*) FROM links WHERE kind='product'").fetchone()[0] <= 1

@@ -223,6 +223,10 @@ def cleanup_links(con):
                        ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','video')""", (d,))
     if dead:
         print(f"  {len(dead)} páginas mortas pelo título (estacionada, expirada, loja fechada...)")
+    neutral = [r["value"] for r in con.execute("SELECT DISTINCT value FROM links WHERE kind='redirect'")
+               if analyze.is_neutral_target(r["value"])]
+    for v in neutral:
+        con.execute("DELETE FROM links WHERE kind='redirect' AND value=?", (v,))
     stores = [r["domain"] for r in con.execute(
                   "SELECT domain, title, text_sample FROM domains WHERE COALESCE(store, 0)=0 AND text_sample IS NOT NULL")
               if is_catalog(r["title"], r["text_sample"])]

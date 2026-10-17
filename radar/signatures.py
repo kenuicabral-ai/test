@@ -74,6 +74,8 @@ VIDEO_PATTERNS = [
     rf"pandavideo[^\"'\s]*?[?&]v=({_UUID})",             # Panda embed ?v=<uuid>
     rf"panda[_-]({_UUID})",
     r"vidalytics[._/](?:embed[_/]|embed_)([A-Za-z0-9]{8,24})",  # Vidalytics embed id
+    rf"converteai\.net/{_UUID}/players/([0-9a-f]{{24}})",  # VTurb .../<conta>/players/<id>/player.js
+    rf"cdn\.converteai\.net/{_UUID}/([0-9a-f]{{24}})/",     # VTurb mídia (m3u8)
 ]
 
 
@@ -95,15 +97,20 @@ _SKIP_SEGMENTS = {"", "pt-br", "pt", "en", "es", "login", "static", "assets", "i
 _NOT_CHECKOUT_SUB = {"accounts", "help", "blog", "docs", "status"}
 # Arquivos da plataforma (script, estilo, imagem): mostram que a página usa o checkout,
 # mas não dizem qual produto. Sem isso, o mesmo script virava "produto" de 22 sites.
-_ASSET_SUB = {"assets", "static", "cdn"}
+_ASSET_SUB = {"assets", "static", "cdn", "tinder", "spark", "thumbor", "sockdrawer", "snowstorm",
+              "images"}
 _ASSET_EXT = {"js", "css", "png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "woff", "woff2",
               "ttf", "json", "map", "mp4"}
+
+
+_PLACEHOLDER_SEG = re.compile(r"seu-?link|your-?link|link-?aqui|seu-?produto|example", re.I)
 
 
 def valid_product_segment(seg: str) -> bool:
     """Um trecho de URL que identifica produto (não arquivo, não pasta genérica)."""
     return (bool(seg) and len(seg) >= 4 and "." not in seg and "asset" not in seg.lower()
-            and seg.lower() not in _SKIP_SEGMENTS)
+            and seg.lower() not in _SKIP_SEGMENTS and not seg.endswith("=")
+            and not _PLACEHOLDER_SEG.search(seg))
 
 # IDs de rastreamento: o que liga domínios da mesma operação. Cada um aparece no
 # código (fbq('init', ...)) e/ou na URL que o navegador pede (facebook.com/tr?id=...,
@@ -116,7 +123,21 @@ TRACKING = {
                 r"facebook\.com/tr/?\?(?:[^\"'\s<>]*?&(?:amp;)?)?id=(\d{12,20})"],
     "ttpixel": [r"ttq\.load\(\s*['\"]([A-Z0-9]{15,25})", r"analytics\.tiktok\.com/[^\"'\s]*?sdkid=([A-Z0-9]{15,25})"],
     "utmify": [r"pixelId\s*[=:]\s*['\"]([A-Za-z0-9]{16,32})"],
+    # Conta da VTurb que hospeda o vídeo: o mesmo produtor em todos os funis dele.
+    "vturb_acct": [rf"converteai\.net/({_UUID})/"],
 }
+# IDs que não identificam operação: exemplos de template e IDs de provedores
+# (Google Analytics das páginas de estacionamento da Hostinger e do WordPress.com).
+_PLACEHOLDER_ID = re.compile(r"^(?:GTM|G|UA|AW)-(?:X{4,}|1234\d*)", re.I)
+GENERIC_IDS = {"UA-26575989-44", "UA-52447-2"}
+
+
+def _real_id(kind, value):
+    if value in GENERIC_IDS or _PLACEHOLDER_ID.match(value):
+        return False
+    if kind == "fbpixel" and len(set(value)) < 3:
+        return False  # 111111111111111, 123123123123...
+    return True
 
 # Redes de anúncio: o pixel/script na página revela ONDE a oferta compra tráfego.
 # É o que diz em qual biblioteca de anúncios procurar os criativos.
@@ -372,7 +393,7 @@ def is_infra(domain: str) -> bool:
 
 def _checkout_of(url: str):
     """(plataforma, chave do produto ou do produtor) de um link de checkout."""
-    from urllib.parse import parse_qs, urlparse
+    from urllib.parse import parse_qs, unquote, urlparse
     try:
         u = urlparse(url)
     except ValueError:
@@ -382,7 +403,7 @@ def _checkout_of(url: str):
         if not (host == base or host.endswith("." + base)):
             continue
         sub = host[:-len(base)].rstrip(".")
-        segs = [s for s in u.path.split("/") if s]
+        segs = [s for s in unquote(u.path).split("/") if s]
         if sub.split(".")[-1] in _NOT_CHECKOUT_SUB:
             return None
         if sub in ("", "www") and not segs and not u.query:
@@ -455,19 +476,20 @@ def extract(html: str) -> dict:
     """Extrai sinais de uma página HTML."""
     html = html or ""
     players = sorted(n for n, rx in PLAYERS.items() if re.search(rx, html, re.I))
-    checkouts, products, checkout_urls = set(), set(), []
+    checkouts, products, checkout_urls, checkout_links = set(), set(), [], set()
     for m in _URL_RE.finditer(html):
         url = m.group(0).rstrip(".,;")
         c = _checkout_of(url)
         if c:
             checkouts.add(c[0])
+            checkout_links.add(url.split("?")[0])
             if c[1]:
                 products.add(c[1])
             if len(checkout_urls) < 5 and url not in checkout_urls:
                 checkout_urls.append(url)
     tracking = {}
     for kind, rxs in TRACKING.items():
-        vals = sorted({v for rx in rxs for v in re.findall(rx, html)})
+        vals = sorted({v for rx in rxs for v in re.findall(rx, html) if _real_id(kind, v)})
         if vals:
             tracking[kind] = vals[:10]
     t = _TITLE_RE.search(html)
@@ -479,6 +501,9 @@ def extract(html: str) -> dict:
         "checkouts": sorted(checkouts),
         "products": sorted(products),
         "checkout_urls": checkout_urls,
+        # Links distintos para a plataforma de checkout (produtos, fotos de produto):
+        # loja tem dezenas ou centenas; funil de resposta direta tem poucos (kits, upsell).
+        "checkout_links": len(checkout_links),
         "tracking": tracking,
         "adnets": ad_networks(html),
         "trackers": trackers(html),

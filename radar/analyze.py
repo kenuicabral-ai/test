@@ -10,7 +10,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import net
-from .db import STORE_MIN_PRODUCTS, add_domain, add_link, norm_domain, now, update
+from .db import STORE_MIN_CHECKOUT_LINKS, STORE_MIN_PRODUCTS, add_domain, add_link, norm_domain, now, update
 from .signatures import DEAD_URL, PARKING_IPS, STRONG_PLAYERS, extract, is_catalog, is_infra
 
 AD_UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 "
@@ -110,19 +110,24 @@ def save(con, res):
         update(con, d, last_analyzed=now(), alive=alive, status_code=res["status"],
                final_url=res["final_url"], title=s["title"], players=[], checkouts=[],
                checkout_urls=[], vsl_text=0, cloaked=int(res["cloaked"]), ip=res["ip"])
-        add_domain(con, fd, "redirect")
-        add_link(con, d, "redirect", fd)
-        add_link(con, fd, "redirect", fd)
+        # Redirect para site comum, plataforma ou governo (cloaker mandando o robô para o
+        # google.com, aposta bloqueada) não diz nada: ligaria ofertas sem relação.
+        if not is_neutral_target(fd):
+            add_domain(con, fd, "redirect")
+            add_link(con, d, "redirect", fd)
+            add_link(con, fd, "redirect", fd)
         return
     update(con, d, last_analyzed=now(), alive=alive, status_code=res["status"],
            final_url=res["final_url"], title=s["title"], lang=s["lang"],
            players=s["players"], checkouts=s["checkouts"], checkout_urls=s["checkout_urls"],
            text_sample=s["text"], vsl_text=int(s["vsl_text"]), cloaked=int(res["cloaked"]),
            ip=res["ip"], store=int(len(s["products"]) >= STORE_MIN_PRODUCTS
+                                   or s.get("checkout_links", 0) >= STORE_MIN_CHECKOUT_LINKS
                                    or is_catalog(s["title"], s["text"])))
     # A página pode ter mudado desde a última análise: troca os IDs pelos atuais.
     con.execute("""DELETE FROM links WHERE domain=? AND kind IN
-                   ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','adnet','social','video')""", (d,))
+                   ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','vturb_acct','adnet',
+                    'social','video')""", (d,))
     con.execute("DELETE FROM links WHERE domain=? AND kind='tracker'", (d,))
     if s.get("dead"):
         # Página de estacionamento/expirado: os IDs (GA, GTM) são do provedor de
@@ -159,6 +164,11 @@ def save(con, res):
         add_link(con, d, "social", f"{k}:{v}")
     if res["ip"]:
         add_link(con, d, "ip", res["ip"])
+
+
+def is_neutral_target(domain):
+    """Destino de redirect que não é oferta nem liga ofertas: plataforma/site comum, governo."""
+    return is_infra(domain) or domain.endswith((".gov.br", ".gov"))
 
 
 def pending(con, hours):

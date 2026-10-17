@@ -256,20 +256,29 @@ def offers(con):
             k, _, v = r["value"].partition(":")
             social[r["domain"]][k] = v
     # Domínio sem produto (ex.: página de entrada que recebe os anúncios) herda o produto
-    # mais comum da sua operação, para os anúncios somarem na oferta certa.
-    cluster_prod = defaultdict(lambda: defaultdict(int))
-    for r in rows:
-        for p in prod[r["domain"]]:
-            cluster_prod[r["cluster_id"]][p] += 1
+    # de um vizinho direto: redirect, página de anúncio, mesmo vídeo ou pixel. GTM, GA e
+    # certificado ligam a operação, mas não dizem qual produto (o mesmo dono vende
+    # vários: Arctic Blast e ProXental viravam "ElectroSlim" pelo GTM do fornecedor).
+    near_groups = defaultdict(set)
+    for r in con.execute("""SELECT domain, kind, value FROM links WHERE kind IN
+                            ('redirect','adpage','video','fbpixel','ttpixel','utmify')"""):
+        near_groups[(r["kind"], r["value"])].add(r["domain"])
+    near = defaultdict(set)
+    for members in near_groups.values():
+        if 2 <= len(members) <= 40:
+            for m in members:
+                near[m] |= members
     groups = defaultdict(list)
     for r in rows:
-        if prod[r["domain"]]:
-            key = sorted(prod[r["domain"]])[0]
-        elif cluster_prod[r["cluster_id"]]:
-            cp = cluster_prod[r["cluster_id"]]
-            key = max(sorted(cp), key=cp.get)
+        d = r["domain"]
+        if prod[d]:
+            key = sorted(prod[d])[0]
         else:
-            key = f"operacao:{r['cluster_id']}"
+            cand = defaultdict(int)
+            for n in near[d] - {d}:
+                for p in prod[n]:
+                    cand[p] += 1
+            key = max(sorted(cand), key=cand.get) if cand else f"operacao:{r['cluster_id']}"
         groups[key].append(r)
     out = []
     for key, members in groups.items():

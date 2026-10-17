@@ -4,7 +4,7 @@ from collections import defaultdict
 # Vínculos que ligam domínios da mesma operação. "product" e "video" são os duráveis
 # (sobrevivem à troca de domínio/pixel); o resto vale para o que está no ar agora.
 STRONG = {"gtm", "ga4", "ua", "fbpixel", "ttpixel", "utmify", "product", "video",
-          "adpage", "cert", "redirect"}
+          "vturb_acct", "adpage", "cert", "redirect"}
 
 
 def run(con, cfg):
@@ -29,7 +29,10 @@ def run(con, cfg):
     for r in con.execute("SELECT domain, kind, value FROM links"):
         groups[(r["kind"], r["value"])].add(r["domain"])
     max_deg = cfg.get("link_max_degree", 40)
-    for (kind, _), members in groups.items():
+    from .signatures import _real_id
+    for (kind, value), members in groups.items():
+        if not _real_id(kind, value):
+            continue  # ID de exemplo/provedor (já gravado por versões anteriores)
         # IP não agrupa: um IP de CDN (Cloudflare etc.) parece raro no banco mas é de
         # milhões de sites. Ele só é usado na expansão, onde o urlscan diz o total real.
         if len(members) < 2 or kind not in STRONG:

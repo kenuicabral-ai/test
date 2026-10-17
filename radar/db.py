@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS witness_links(
 
 # Página com tantos produtos no checkout é loja virtual, não oferta de resposta direta.
 STORE_MIN_PRODUCTS = 10
+STORE_MIN_CHECKOUT_LINKS = 20
 
 _HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$")
 
