@@ -69,8 +69,10 @@ class FakeUrlscan:
         return Resp(200, {"results": hits[:size], "total": len(hits)})
 
 
-def scan(domain, time, loads=(), ip="10.0.0.1", age=None):
+def scan(domain, time, loads=(), ip="10.0.0.1", age=None, title=None):
     page = {"domain": domain, "ip": ip}
     if age is not None:
         page["apexDomainAgeDays"] = age
-    return {"task": {"time": time}, "page": page, "loads": set(loads)}
+    if title:
+        page["title"] = title
+    return {"_id": f"uuid-{domain}-{time}", "task": {"time": time}, "page": page, "loads": set(loads)}

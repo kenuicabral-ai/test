@@ -127,6 +127,10 @@ def save(con, res):
         if res["ip"]:
             add_link(con, d, "ip", res["ip"])
         return
+    # O que a varredura do urlscan viu na página real (radar/witness.py) continua valendo,
+    # mesmo que a nossa visita caia na página isca.
+    con.execute("""INSERT OR IGNORE INTO links(domain, kind, value)
+                   SELECT domain, kind, value FROM witness_links WHERE domain=?""", (d,))
     for kind, vals in s["tracking"].items():
         for v in vals:
             add_link(con, d, kind, v)

@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS domains(
   ad_count INTEGER, ad_video INTEGER, ad_max_days INTEGER, ad_pages INTEGER,
   tranco_rank INTEGER, cluster_id INTEGER, score REAL, score_parts TEXT, stage TEXT,
   last_enriched TEXT, classified INTEGER, forca REAL, tracao REAL, trend REAL,
-  domain_created TEXT, store INTEGER, stats_checked TEXT
+  domain_created TEXT, store INTEGER, stats_checked TEXT,
+  scan_uuid TEXT, scan_time TEXT, seen_title TEXT, witness_scan TEXT
 );
 CREATE TABLE IF NOT EXISTS links(
   domain TEXT, kind TEXT, value TEXT, PRIMARY KEY(domain, kind, value)
@@ -37,6 +38,9 @@ CREATE TABLE IF NOT EXISTS signal_history(
 CREATE INDEX IF NOT EXISTS hist_kind ON signal_history(kind);
 CREATE TABLE IF NOT EXISTS discovery(
   query TEXT PRIMARY KEY, newest TEXT, oldest TEXT
+);
+CREATE TABLE IF NOT EXISTS witness_links(
+  domain TEXT, kind TEXT, value TEXT, PRIMARY KEY(domain, kind, value)
 );
 """
 
@@ -73,7 +77,9 @@ def connect(path):
     # Migração: acrescenta colunas novas a bancos criados por versões anteriores.
     have = {r["name"] for r in con.execute("PRAGMA table_info(domains)")}
     for col, decl in (("forca", "REAL"), ("tracao", "REAL"), ("trend", "REAL"),
-                      ("domain_created", "TEXT"), ("store", "INTEGER"), ("stats_checked", "TEXT")):
+                      ("domain_created", "TEXT"), ("store", "INTEGER"), ("stats_checked", "TEXT"),
+                      ("scan_uuid", "TEXT"), ("scan_time", "TEXT"), ("seen_title", "TEXT"),
+                      ("witness_scan", "TEXT")):
         if col not in have:
             con.execute(f"ALTER TABLE domains ADD COLUMN {col} {decl}")
     if "store" not in have:  # marca as lojas já analisadas, sem esperar a próxima análise

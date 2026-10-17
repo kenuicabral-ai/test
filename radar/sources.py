@@ -33,7 +33,8 @@ BREAKER = {"urlscan": False, "crtsh_fail": 0, "crtsh_kw_fail": 0}
 # Cota do urlscan: ele conta cada BUSCA (não cada resultado). A rodada lê quantas
 # buscas restam e reparte entre descoberta, varreduras e expansão, em vez de gastar
 # tudo na primeira etapa. "cap" é o teto da etapa em andamento (None = sem teto).
-QUOTA = {"checked": False, "left": None, "used": 0, "cap": None}
+QUOTA = {"checked": False, "left": None, "used": 0, "cap": None, "retrieve_left": None,
+         "retrieved": 0}
 
 
 def urlscan_available():
@@ -64,9 +65,13 @@ def urlscan_quota(cfg):
     QUOTA["checked"] = True
     try:
         r = net.get("https://urlscan.io/user/quotas/", headers=_urlscan_headers(cfg), timeout=20)
-        s = r.json()["limits"]["search"]
+        limits = r.json()["limits"]
+        s = limits["search"]
         day, hour = s["day"], s["hour"]
         QUOTA["left"] = max(0, min(day["remaining"], hour["remaining"]))
+        ret = limits.get("retrieve") or {}
+        if ret.get("day") and ret.get("hour"):
+            QUOTA["retrieve_left"] = max(0, min(ret["day"]["remaining"], ret["hour"]["remaining"]))
     except Exception as e:
         log(f"  urlscan: não consegui ler a cota ({type(e).__name__}); sigo sem orçamento")
         return None
@@ -146,20 +151,32 @@ def urlscan_search(query, cfg, max_results=1000, since=None, until=None):
     return out, total or 0, False
 
 
-def _note_age(con, domain, result):
-    """Data de criação do domínio, que o urlscan informa (WHOIS) em cada varredura."""
+def _note_scan(con, domain, result):
+    """O que cada varredura do urlscan já traz, sem custo extra.
+
+    - Data de registro do domínio (WHOIS), que vira a idade da oferta.
+    - A varredura mais recente (uuid e horário) e o título que o urlscan viu: com
+      cloaking, a nossa visita cai na página isca e esse é o título da página real.
+    """
+    from .signatures import _unescape
     page = result.get("page") or {}
+    when = (result.get("task") or {}).get("time") or ""
     days = page.get("apexDomainAgeDays", page.get("domainAgeDays"))
-    seen = ((result.get("task") or {}).get("time") or "")[:10]
-    if not isinstance(days, int) or days < 0 or not seen:
-        return
-    try:
-        created = (dt.date.fromisoformat(seen) - dt.timedelta(days=days)).isoformat()
-    except ValueError:
-        return
-    # Fica a mais recente: domínio que expirou e foi registrado de novo é novo.
-    con.execute("UPDATE domains SET domain_created=? WHERE domain=? AND "
-                "(domain_created IS NULL OR domain_created < ?)", (created, domain, created))
+    if isinstance(days, int) and days >= 0 and when:
+        try:
+            created = (dt.date.fromisoformat(when[:10]) - dt.timedelta(days=days)).isoformat()
+        except ValueError:
+            created = None
+        if created:
+            # Fica a mais recente: domínio que expirou e foi registrado de novo é novo.
+            con.execute("UPDATE domains SET domain_created=? WHERE domain=? AND "
+                        "(domain_created IS NULL OR domain_created < ?)", (created, domain, created))
+    uuid = result.get("_id") or (result.get("task") or {}).get("uuid")
+    if uuid and when:
+        title = _unescape(page.get("title") or "")[:200] or None
+        con.execute("UPDATE domains SET scan_uuid=?, scan_time=?, seen_title=COALESCE(?, seen_title) "
+                    "WHERE domain=? AND (scan_time IS NULL OR scan_time < ?)",
+                    (uuid, when, title, domain, when))
 
 
 def discover_urlscan(con, cfg):
@@ -201,7 +218,7 @@ def discover_urlscan(con, cfg):
                 add_link(con, d, "ip", page["ip"])
             if seen:  # testemunha do urlscan: "esta página carregou X"
                 add_link(con, d, "seen", f"{seen[0]}:{seen[1]}")
-            _note_age(con, d, r)
+            _note_scan(con, d, r)
         con.commit()
         new += n
         if res or complete:
@@ -258,6 +275,52 @@ def discover_urlscan(con, cfg):
     return new
 
 
+def urlscan_result(uuid, cfg):
+    """Resultado completo de uma varredura (requisições, links da página, título).
+
+    Exige a chave do urlscan e usa a cota de leitura ("retrieve"), separada da de busca.
+    None quando não dá (sem chave, cota, varredura apagada ou erro).
+    """
+    if not cfg.get("urlscan_api_key") or BREAKER.get("retrieve"):
+        return None
+    if not QUOTA["checked"]:
+        urlscan_quota(cfg)
+    if QUOTA["retrieve_left"] is not None and QUOTA["retrieved"] >= QUOTA["retrieve_left"]:
+        return None
+    try:
+        r = net.get(f"https://urlscan.io/api/v1/result/{uuid}/", headers=_urlscan_headers(cfg),
+                    timeout=60, min_interval=cfg.get("urlscan_retrieve_interval", 3.0))
+    except Exception as e:
+        log(f"  urlscan (leitura) falhou: {e}")
+        return None
+    if r.status_code in (403, 429):
+        BREAKER["retrieve"] = True
+        log(f"  urlscan: leitura de varreduras indisponível ({r.status_code}); fica para a próxima rodada")
+        return None
+    if r.status_code != 200:
+        return None  # 404: varredura apagada
+    QUOTA["retrieved"] += 1
+    try:
+        return r.json()
+    except ValueError:
+        return None
+
+
+def witness_page(result):
+    """Junta o que a varredura viu numa "página" para extract(): os endereços pedidos
+    (player, pixel, checkout) e os links da página (redes sociais, checkout)."""
+    lists = result.get("lists") or {}
+    data = result.get("data") or {}
+    urls = list(lists.get("urls") or [])
+    for req in data.get("requests") or []:
+        u = ((req.get("request") or {}).get("request") or {}).get("url")
+        if u:
+            urls.append(u)
+    links = [ln.get("href") for ln in data.get("links") or [] if isinstance(ln, dict) and ln.get("href")]
+    title = ((result.get("page") or {}).get("title") or "").replace("<", " ")
+    return f"<title>{title}</title>\n" + "".join(f'"{u}"\n' for u in urls + links)
+
+
 def _owner(host, domains):
     """O domínio do lote a que a varredura pertence (o mais específico)."""
     best = None
@@ -300,7 +363,7 @@ def urlscan_stats(con, domains, cfg):
                urlscan_first=times[0] if times else None,
                urlscan_last=times[-1] if times else None)
         if rs:
-            _note_age(con, d, rs[0])
+            _note_scan(con, d, rs[0])
     return set(domains)
 
 
