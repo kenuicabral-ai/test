@@ -129,6 +129,16 @@ def save(con, res):
         add_link(con, d, "tracker", n)
     for v in s.get("videos", []):
         add_link(con, d, "video", v)
+    # Histórico: registra cada pixel/vídeo/produto já visto no domínio (não é apagado),
+    # para medir quantas vezes ele trocou de pixel ao longo do tempo.
+    ts = now()
+    for kind, vals in (("fbpixel", s["tracking"].get("fbpixel", [])),
+                       ("video", s.get("videos", [])), ("product", s["products"])):
+        for v in vals:
+            con.execute(
+                "INSERT INTO signal_history(domain,kind,value,first_seen,last_seen) VALUES(?,?,?,?,?) "
+                "ON CONFLICT(domain,kind,value) DO UPDATE SET last_seen=excluded.last_seen",
+                (d, kind, v, ts, ts))
     for k, v in s.get("advertiser", {}).items():
         add_link(con, d, "social", f"{k}:{v}")
     if res["ip"]:

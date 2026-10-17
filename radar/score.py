@@ -73,11 +73,13 @@ def run(con, cfg):
         k, _, v = r["value"].partition(":")
         if k in ("player", "checkout", "tracker"):
             seen[r["domain"]][k].add(v)
+    # Histórico de pixels por domínio (acumulado, não apagado): quantos pixels distintos
+    # o domínio já usou. Captura a troca de pixel no mesmo domínio ao longo do tempo.
     pixels = defaultdict(set)
-    for r in con.execute("SELECT domain, value FROM links WHERE kind='fbpixel'"):
+    for r in con.execute("SELECT domain, value FROM signal_history WHERE kind='fbpixel'"):
         pixels[r["domain"]].add(r["value"])
     cluster_size = defaultdict(int)
-    cluster_pixels = defaultdict(set)  # pixels distintos na operação = rotação/escala ativa
+    cluster_pixels = defaultdict(set)  # pixels distintos na operação (no tempo) = rotação/escala
     for r in rows:
         if is_offer(r):
             cluster_size[r["cluster_id"]] += 1

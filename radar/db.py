@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS snapshots(
 CREATE TABLE IF NOT EXISTS expanded(
   kind TEXT, value TEXT, day TEXT, found INTEGER, PRIMARY KEY(kind, value)
 );
+CREATE TABLE IF NOT EXISTS signal_history(
+  domain TEXT, kind TEXT, value TEXT, first_seen TEXT, last_seen TEXT,
+  PRIMARY KEY(domain, kind, value)
+);
+CREATE INDEX IF NOT EXISTS hist_kind ON signal_history(kind);
 """
 
 _HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$")
