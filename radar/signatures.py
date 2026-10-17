@@ -286,11 +286,29 @@ DEAD_TITLE = re.compile(
     r"loja fechada|store (?:is )?closed|account (?:has been )?suspended|conta suspensa|"
     r"(?:domain|domínio) (?:is |está )?(?:for sale|à venda)|is for sale|parked domain|"
     r"(?:domain|domínio)(?: name)? (?:is |has |está |foi )?(?:been )?(?:expired|expirado)|"
-    r"domain (?:has )?expired|domínio expirou|"
+    r"domain (?:has )?expired|domínio expirou|domain name on hostinger|"
+    r"^\s*coming soon\b|coming soon page|^\s*under construction|em construção|"
+    r"\bshop (?:is )?closed|this store is unavailable|site is created successfully|"
+    r"takedown notice|^\s*project not found|suspected phishing|"
     r"\b404\b|page not found|página não encontrada",
     re.I,
 )
 DEAD_HTML = re.compile(r"ref=closed-store", re.I)
+# Destino final que denuncia página fora do ar (loja fechada, site bloqueado pela hospedagem).
+DEAD_URL = re.compile(r"^https?://[^/]+/(?:closed-store|blocked|coming-soon)\b", re.I)
+# IPs das páginas de estacionamento da Hostinger.
+PARKING_IPS = {"2.57.91.91", "2.57.91.92"}
+
+# Loja de catálogo (Shopify, CartPanda, Yampi...): não expõe 10 produtos no checkout,
+# mas tem a navegação de loja. Dois marcadores diferentes bastam.
+STORE_MARKERS = ("todos os produtos", "all products", "shop all", "rastrear pedido", "rastreie seu pedido",
+                 "track your order", "track order", "frete grátis acima", "minha conta", "my account",
+                 "meu carrinho", "create account", "criar conta", "adicionar ao carrinho", "add to cart")
+
+
+def is_catalog(title, text):
+    t = f"{title or ''} {text or ''}".lower()
+    return sum(1 for m in STORE_MARKERS if m in t) >= 2
 
 # Área de membros / login: página de quem já comprou (curso, comunidade), não a oferta.
 MEMBERS_TITLE = re.compile(
@@ -318,7 +336,28 @@ INFRA = {
     "everflow.io", "cometly.com", "taboola.com", "outbrain.com", "mgid.com",
     "clickfunnels.com", "systeme.io", "kajabi.com",
     "bit.ly", "linktr.ee", "urlscan.io", "crt.sh", "wordpress.com", "wixsite.com",
+    # Hosts das próprias plataformas de checkout/afiliação/tracking (não são a oferta).
+    "checkout-ds24.com", "ds25.io", "jvzoo.com", "clkmc.com", "clkmg.com", "clkmr.com",
+    "sparkbyclickbank.com", "explodely.com", "leadconnectorhq.com", "kartra.com",
+    "ticto.club", "ticto.dev", "ticto.link", "translate.goog",
 }
+
+# Hospedagens onde cada subdomínio é de um cliente diferente: o domínio raiz não diz
+# nada sobre a oferta (nem idade, nem Tranco, nem "mesma empresa").
+MULTITENANT = {
+    "pages.dev", "vercel.app", "netlify.app", "lovable.app", "github.io", "web.app",
+    "firebaseapp.com", "herokuapp.com", "onrender.com", "b-cdn.net", "workers.dev",
+    "myshopify.com", "wixsite.com", "blogspot.com", "wordpress.com", "carrd.co",
+    "framer.website", "webflow.io", "notion.site", "replit.app", "bolt.host", "chatgpt.site",
+    "arktrix.app", "plutio.com", "it.com", "xpages.co", "azurewebsites.net", "cloudfront.net",
+    "amazonaws.com", "appspot.com", "surge.sh", "mycartpanda.com", "ticto.club",
+    "onlineshopping.net.br", "hostingersite.com", "meusitehostgator.com.br",
+}
+
+
+def is_multitenant(domain: str) -> bool:
+    from .db import registrable
+    return registrable(domain) in MULTITENANT
 
 _URL_RE = re.compile(r"https?://[^\s\"'<>()\\]+", re.I)
 _TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)

@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import net
 from .db import STORE_MIN_PRODUCTS, add_domain, add_link, norm_domain, now, update
-from .signatures import STRONG_PLAYERS, extract
+from .signatures import DEAD_URL, PARKING_IPS, STRONG_PLAYERS, extract, is_catalog, is_infra
 
 AD_UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 "
          "(KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/480.0.0;FBBV/650000000;"
@@ -100,6 +100,8 @@ def analyze_one(domain, render=False, timeout=20, proxy=None):
 
 def save(con, res):
     d, s = res["domain"], res["sig"]
+    if DEAD_URL.search(res["final_url"] or "") or res["ip"] in PARKING_IPS:
+        s = {**s, "dead": True}
     alive = 1 if res["status"] and res["status"] < 400 and not s.get("dead") else 0
     fd = res["final_domain"]
     if fd and fd != d:
@@ -116,7 +118,8 @@ def save(con, res):
            final_url=res["final_url"], title=s["title"], lang=s["lang"],
            players=s["players"], checkouts=s["checkouts"], checkout_urls=s["checkout_urls"],
            text_sample=s["text"], vsl_text=int(s["vsl_text"]), cloaked=int(res["cloaked"]),
-           ip=res["ip"], store=int(len(s["products"]) >= STORE_MIN_PRODUCTS))
+           ip=res["ip"], store=int(len(s["products"]) >= STORE_MIN_PRODUCTS
+                                   or is_catalog(s["title"], s["text"])))
     # A página pode ter mudado desde a última análise: troca os IDs pelos atuais.
     con.execute("""DELETE FROM links WHERE domain=? AND kind IN
                    ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','adnet','social','video')""", (d,))
@@ -235,6 +238,10 @@ def run(con, cfg, render=False, limit=None, log=print):
 SEEN_OFFERS = set()
 
 
+# Top 50 mil do Tranco: portais, marcas e SaaS (porkbun, typeform, shopify, forbes).
+# Ofertas de resposta direta grandes aparecem na faixa de 50 mil a 1 milhão.
+MAINSTREAM_RANK = 50_000
+
 # Trackers que só produtores de resposta direta usam: a testemunha deles basta.
 # Hyros, ClickMagick e RedTrack também atendem SaaS, e-commerce e consultorias (na
 # rodada #21 a testemunha do Hyros pôs porkbun.com e um CRM no topo); para eles
@@ -260,6 +267,10 @@ def is_offer(row):
     """
     from .db import jl
     from .signatures import MEMBERS_TITLE
+    if is_infra(row["domain"]):
+        return False  # host da própria plataforma (checkout, afiliação, tracking)
+    if min(row["tranco_rank"] or 10**9, row["tranco_apex"] or 10**9) <= MAINSTREAM_RANK:
+        return False  # site comum muito visitado; a testemunha nele é de outra coisa
     players = set(jl(row["players"]))
     if row["store"] and not players & STRONG_PLAYERS:
         return False

@@ -99,10 +99,40 @@ def test_native_pixel_queries_have_no_backfill(con, fake):
 def test_dead_titles_already_in_db_are_fixed_at_ranking(con):
     """Regra nova vale já no próximo ranking, sem esperar reanalisar 30 mil domínios."""
     add_domain(con, "viralpackage.shop", "urlscan")
-    update(con, "viralpackage.shop", alive=1, title="Your domain is expired")
+    update(con, "viralpackage.shop", alive=1, title="Your domain is expired",
+           last_analyzed="2026-10-17T00:00:00")
     add_link(con, "viralpackage.shop", "ua", "UA-26575989-44")
     add_link(con, "viralpackage.shop", "ip", "1.2.3.4")
     radar_cli.cleanup_links(con)
     assert con.execute("SELECT alive FROM domains").fetchone()[0] == 0
     kinds = {r[0] for r in con.execute("SELECT kind FROM links")}
     assert kinds == {"ip"}
+
+
+def test_more_dead_pages_infra_mainstream_and_catalog_at_ranking(con):
+    rows = {
+        "lojafechada.com": dict(title="Loja", final_url="https://lojafechada.com/closed-store"),
+        "bloqueado.app": dict(title="Website Takedown Notice - Lovable Trust & Safety"),
+        "estacionado.shop": dict(title="Welcome", ip="2.57.91.91"),
+        "catalogo.com.br": dict(title="Loja X", text_sample="Todos os produtos | Rastrear pedido | Minha conta"),
+        "vsl.com.br": dict(title="Assista ao vídeo", text_sample="o método que mudou minha vida"),
+    }
+    for d, kw in rows.items():
+        add_domain(con, d, "urlscan")
+        update(con, d, alive=1, last_analyzed="2026-10-17T00:00:00", checkouts='["hotmart"]', **kw)
+    add_domain(con, "ds-review-1.dev.ds25.io", "t")  # infra: nem entra
+    radar_cli.cleanup_links(con)
+    r = {x["domain"]: x for x in con.execute("SELECT * FROM domains")}
+    assert [d for d in r if r[d]["alive"] == 0] == ["lojafechada.com", "bloqueado.app", "estacionado.shop"]
+    assert r["catalogo.com.br"]["store"] == 1 and not analyze.is_offer(r["catalogo.com.br"])
+    assert analyze.is_offer(r["vsl.com.br"]) and "ds-review-1.dev.ds25.io" not in r
+
+
+def test_mainstream_by_apex_tranco_is_not_an_offer(con):
+    add_domain(con, "form.typeform.com", "urlscan")
+    update(con, "form.typeform.com", players='["vidalytics"]', tranco_apex=1070)
+    add_domain(con, "oferta-grande.com", "urlscan")
+    update(con, "oferta-grande.com", players='["vturb"]', tranco_rank=180_000)
+    r = {x["domain"]: x for x in con.execute("SELECT * FROM domains")}
+    assert not analyze.is_offer(r["form.typeform.com"])
+    assert analyze.is_offer(r["oferta-grande.com"])  # oferta grande no top 1M continua
