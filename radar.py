@@ -17,7 +17,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from radar import analyze, classify, expand, graph, report, score, sources  # noqa: E402
+from radar import analyze, classify, expand, graph, report, score, sources, witness  # noqa: E402
 from radar.analyze import is_offer  # noqa: E402
 from radar.db import add_domain, add_link, connect, now, update  # noqa: E402
 
@@ -68,6 +68,7 @@ DEFAULT_CONFIG = {
     "urlscan_discovery_share": 0.5,  # fração da cota que o histórico pode usar
     "urlscan_batch": 40,  # domínios/IPs por busca nas varreduras e na expansão
     "urlscan_backfill_adnet": False,  # histórico das buscas de pixel de nativos (muito volume)
+    "urlscan_witness_max": 300,  # varreduras lidas por rodada (ofertas com cloaking; exige chave)
     "urlscan_interval": 2.0,
     "certstream_url": "wss://certstream.calidog.io/",
     "certstream_patterns": [
@@ -190,15 +191,28 @@ def tranco(con, cfg):
 
 
 def cleanup_links(con):
-    """Remove chaves de produto geradas por regras antigas (ex.: 'buygoods:secure')."""
-    from radar.signatures import valid_product_key
+    """Aplica regras novas ao que já está no banco, sem esperar a próxima análise.
+
+    - Chaves de produto geradas por regras antigas (ex.: 'buygoods:secure').
+    - Páginas mortas pelo título (estacionada, expirada...): fora do ar e sem os IDs
+      de rastreamento do provedor, que ligariam domínios sem relação.
+    """
+    from radar.signatures import DEAD_TITLE, valid_product_key
     bad = [r["value"] for r in con.execute("SELECT DISTINCT value FROM links WHERE kind='product'")
            if not valid_product_key(r["value"])]
     for v in bad:
         con.execute("DELETE FROM links WHERE kind='product' AND value=?", (v,))
     if bad:
-        con.commit()
         print(f"  {len(bad)} chaves de produto genéricas removidas")
+    dead = [r["domain"] for r in con.execute("SELECT domain, title FROM domains WHERE alive=1 AND title != ''")
+            if DEAD_TITLE.search(r["title"])]
+    for d in dead:
+        con.execute("UPDATE domains SET alive=0 WHERE domain=?", (d,))
+        con.execute("""DELETE FROM links WHERE domain=? AND kind IN
+                       ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','video')""", (d,))
+    if dead:
+        print(f"  {len(dead)} páginas mortas pelo título (estacionada, expirada, loja fechada...)")
+    con.commit()
 
 
 def finish(con, cfg, do_classify=True):
@@ -221,6 +235,8 @@ def cmd_run(con, cfg, args):
     analyze.refresh_seen(con)  # testemunhas do urlscan contam como oferta daqui para frente
     step("Análise das páginas")
     analyze.run(con, cfg, render=args.render, limit=args.limite)
+    step("Testemunha do urlscan: página real das ofertas com cloaking")
+    witness.run(con, cfg)
     enrich(con, cfg, share=0.5)  # idade e varreduras das ofertas (metade do tempo restante)
     for i in range(cfg["rounds"]):
         step(f"Expansão em grafo (rodada {i + 1}/{cfg['rounds']})")
@@ -253,6 +269,7 @@ def main():
     sub.add_parser("enriquecer", help="idade, varreduras, Tranco")
     sub.add_parser("ranking", help="grafo + score + relatório (sem rede)")
     sub.add_parser("classificar", help="classifica com a API da Claude")
+    sub.add_parser("testemunha", help="lê no urlscan a página real das ofertas com cloaking")
     i = sub.add_parser("importar", help="importa CSV da extensão")
     i.add_argument("arquivos", nargs="+")
     u = sub.add_parser("importar-urls", help="importa URLs/domínios de qualquer export de ad-spy")
@@ -293,6 +310,8 @@ def main():
         finish(con, cfg, do_classify=False)
     elif args.cmd == "classificar":
         classify.run(con, cfg)
+    elif args.cmd == "testemunha":
+        witness.run(con, cfg)
     elif args.cmd == "importar":
         for f in args.arquivos:
             print(f"{f}: {sources.import_extension_csv(con, f)} domínios novos")

@@ -267,7 +267,14 @@ def offers(con):
             "wa": soc.get("wa", ""), "marca": soc.get("brand", ""),
             "cnpj": soc.get("cnpj", ""), "email": soc.get("email", ""),
             "dominio_principal": top["domain"],
-            "titulo": top["title"] or "",
+            # Com cloaking, a nossa visita cai na página isca: o título que vale é o que
+            # o urlscan viu na página real.
+            "titulo": (top["title"] if (jl(top["players"]) or jl(top["checkouts"])) and top["title"]
+                       else top["seen_title"] or top["title"] or ""),
+            "titulo_urlscan": top["seen_title"] or "",
+            # Sinais lidos na varredura do urlscan, não na nossa visita (que viu a isca).
+            "visto_pelo_urlscan": "sim" if any(m["witness_scan"] and not jl(m["players"])
+                                               and not jl(m["checkouts"]) for m in members) else "",
             "nicho": top["niche"] or "",
             "promessa": top["promise"] or "",
             "dominios": len(members),

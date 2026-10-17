@@ -105,14 +105,17 @@ def valid_product_segment(seg: str) -> bool:
     return (bool(seg) and len(seg) >= 4 and "." not in seg and "asset" not in seg.lower()
             and seg.lower() not in _SKIP_SEGMENTS)
 
-# IDs de rastreamento: o que liga domínios da mesma operação.
+# IDs de rastreamento: o que liga domínios da mesma operação. Cada um aparece no
+# código (fbq('init', ...)) e/ou na URL que o navegador pede (facebook.com/tr?id=...,
+# como no <noscript> e na lista de requisições de uma varredura do urlscan).
 TRACKING = {
-    "gtm": r"\b(GTM-[A-Z0-9]{4,9})\b",
-    "ga4": r"['\"](G-[A-Z0-9]{8,12})['\"]",
-    "ua": r"\b(UA-\d{4,10}-\d{1,4})\b",
-    "fbpixel": r"fbq\(\s*['\"]init['\"]\s*,\s*['\"](\d{12,20})",
-    "ttpixel": r"ttq\.load\(\s*['\"]([A-Z0-9]{15,25})",
-    "utmify": r"pixelId\s*[=:]\s*['\"]([A-Za-z0-9]{16,32})",
+    "gtm": [r"\b(GTM-[A-Z0-9]{4,9})\b"],
+    "ga4": [r"['\"](G-[A-Z0-9]{8,12})['\"]", r"[?&]id=(G-[A-Z0-9]{8,12})\b"],
+    "ua": [r"\b(UA-\d{4,10}-\d{1,4})\b"],
+    "fbpixel": [r"fbq\(\s*['\"]init['\"]\s*,\s*['\"](\d{12,20})",
+                r"facebook\.com/tr/?\?(?:[^\"'\s<>]*?&(?:amp;)?)?id=(\d{12,20})"],
+    "ttpixel": [r"ttq\.load\(\s*['\"]([A-Z0-9]{15,25})", r"analytics\.tiktok\.com/[^\"'\s]*?sdkid=([A-Z0-9]{15,25})"],
+    "utmify": [r"pixelId\s*[=:]\s*['\"]([A-Za-z0-9]{16,32})"],
 }
 
 # Redes de anúncio: o pixel/script na página revela ONDE a oferta compra tráfego.
@@ -393,8 +396,8 @@ def extract(html: str) -> dict:
             if len(checkout_urls) < 5 and url not in checkout_urls:
                 checkout_urls.append(url)
     tracking = {}
-    for kind, rx in TRACKING.items():
-        vals = sorted(set(re.findall(rx, html)))
+    for kind, rxs in TRACKING.items():
+        vals = sorted({v for rx in rxs for v in re.findall(rx, html)})
         if vals:
             tracking[kind] = vals[:10]
     t = _TITLE_RE.search(html)

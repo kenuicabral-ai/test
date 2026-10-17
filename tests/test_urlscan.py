@@ -114,3 +114,12 @@ def test_ip_expansion_in_batches_skips_shared_hosting(con, fake):
     assert con.execute("SELECT COUNT(*) FROM domains WHERE domain LIKE 'site%'").fetchone()[0] == 0
     marked = {r["value"]: r["found"] for r in con.execute("SELECT * FROM expanded")}
     assert marked == {"5.5.5.5": 2, "6.6.6.6": 0, "104.16.0.1": 0}
+
+
+def test_discovery_keeps_latest_scan_and_real_title(con, fake):
+    """Com cloaking a nossa visita vê a isca; o urlscan viu a página real."""
+    recent = scan("slim.com", ago(1), ["converteai.net"], title="SlimTide - Watch the video")
+    fake([recent, scan("slim.com", ago(2), ["converteai.net"], title="Antigo")])
+    sources.discover_urlscan(con, dict(CFG))
+    r = con.execute("SELECT scan_uuid, seen_title FROM domains WHERE domain='slim.com'").fetchone()
+    assert (r["scan_uuid"], r["seen_title"]) == (recent["_id"], "SlimTide - Watch the video")
