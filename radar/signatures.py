@@ -292,6 +292,14 @@ DEAD_TITLE = re.compile(
 )
 DEAD_HTML = re.compile(r"ref=closed-store", re.I)
 
+# Área de membros / login: página de quem já comprou (curso, comunidade), não a oferta.
+MEMBERS_TITLE = re.compile(
+    r"^\s*(?:sign in|log ?in|entrar|acessar|acesse sua conta)\b|sign in to view your content|"
+    r"área de membros|area de membros|members? area|member login|portal do aluno|"
+    r"\bmy courses\b|meus cursos",
+    re.I,
+)
+
 # Domínios de infraestrutura: nunca são "a oferta".
 INFRA = {
     "facebook.com", "fbcdn.net", "instagram.com", "fb.com", "whatsapp.com", "wa.me",
@@ -377,9 +385,16 @@ def _checkout_of(url: str):
     return None
 
 
+# Pastas de arquivos das plataformas que viraram "produto" em análises antigas
+# (thrivecart:vprod-..., samcart:pages-tracker, samcart:marketplace-...).
+_ASSET_SEGMENT = re.compile(r"^(?:vprod-|pages-tracker|marketplace-)", re.I)
+
+
 def valid_product_key(key: str) -> bool:
     """Filtra chaves antigas geradas antes das regras atuais (ex.: 'buygoods:secure')."""
     plat, _, seg = key.partition(":")
+    if _ASSET_SEGMENT.match(seg):
+        return False
     if plat in ("buygoods", "digistore24"):
         return seg.isdigit() and len(seg) >= 3
     if plat == "clickbank":

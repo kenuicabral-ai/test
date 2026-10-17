@@ -235,11 +235,20 @@ def run(con, cfg, render=False, limit=None, log=print):
 SEEN_OFFERS = set()
 
 
+# Trackers que só produtores de resposta direta usam: a testemunha deles basta.
+# Hyros, ClickMagick e RedTrack também atendem SaaS, e-commerce e consultorias (na
+# rodada #21 a testemunha do Hyros pôs porkbun.com e um CRM no topo); para eles
+# é preciso ver player ou checkout.
+DR_ONLY_TRACKERS = {"utmify"}
+
+
 def refresh_seen(con):
     SEEN_OFFERS.clear()
-    for r in con.execute("SELECT DISTINCT domain FROM links WHERE kind='seen' AND "
+    for r in con.execute("SELECT DISTINCT domain, value FROM links WHERE kind='seen' AND "
                          "(value LIKE 'player:%' OR value LIKE 'checkout:%' OR value LIKE 'tracker:%')"):
-        SEEN_OFFERS.add(r["domain"])
+        kind, _, name = r["value"].partition(":")
+        if kind != "tracker" or name in DR_ONLY_TRACKERS:
+            SEEN_OFFERS.add(r["domain"])
 
 
 def is_offer(row):
@@ -250,9 +259,12 @@ def is_offer(row):
     fica de fora, a não ser que tenha player de VSL.
     """
     from .db import jl
+    from .signatures import MEMBERS_TITLE
     players = set(jl(row["players"]))
     if row["store"] and not players & STRONG_PLAYERS:
         return False
+    if MEMBERS_TITLE.search(row["title"] or ""):
+        return False  # área de membros/login: é de quem já comprou, não é a oferta
     return bool(jl(row["checkouts"]) or players & STRONG_PLAYERS or
                 (players and row["vsl_text"]) or (row["ad_count"] or 0) > 0 or
                 row["domain"] in SEEN_OFFERS)

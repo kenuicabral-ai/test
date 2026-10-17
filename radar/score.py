@@ -26,7 +26,24 @@ TRACAO_W = {"anuncio_idade": 20, "anuncio_video": 6, "anuncio_volume": 8, "anunc
             "trafego_tranco": 10, "varreduras_30d": 8, "varreduras_total": 4,
             "longevidade": 8, "renovacoes_cert": 3, "momento": 10}
 AD_PARTS = {"anuncio_idade", "anuncio_video", "anuncio_volume", "anuncio_paginas"}
-BLEND = 0.6  # peso da FORÇA no score final (TRAÇÃO leva 0.4)
+BLEND = 0.6  # peso da FORÇA no score do domínio (TRAÇÃO leva 0.4)
+
+# ESCALA (0-100) da oferta inteira: sinais públicos de que ela está grande, somados em
+# todos os domínios dela. Não é faturamento (não é público); é volume e persistência.
+# Referências tiradas da distribuição real (varreduras em 30 dias: mediana 1, p99 ~22).
+ESCALA_W = {
+    "varreduras_30d": 20,   # visitas que viram varredura no urlscan no último mês
+    "varreduras_total": 6,
+    "dominios": 14,         # domínios ativos distintos: afiliados/landers da mesma oferta
+    "operacao": 8,          # funis do mesmo dono
+    "rotacao_pixel": 10,    # pixels distintos no tempo: trocou de conta e seguiu anunciando
+    "longevidade": 12,      # oferta que dura é oferta que dá lucro
+    "anuncios_volume": 10,  # só quando consultado numa fonte de anúncios
+    "anuncios_idade": 10,
+    "redes": 5,             # várias redes de anúncio ao mesmo tempo
+    "tranco": 5,
+}
+OFFER_BLEND = 0.4  # score da oferta: 40% Força (é um funil de verdade?) + 60% Escala
 
 
 def _cap(x):
@@ -186,9 +203,40 @@ def run(con, cfg):
           f"histórico={'sim' if has_history else 'ainda não'})")
 
 
+def escala(members, op_domains, pixels, nets, age_days):
+    """Escala da oferta e de onde veio cada ponto. Só entram os sinais medidos para ela."""
+    from .db import registrable
+    alive = [m for m in members if m["alive"]]
+    stats = any(m["urlscan_total"] is not None for m in members)
+    ads = any(m["ad_count"] is not None for m in members)
+    ranks = [m["tranco_rank"] for m in members if m["tranco_rank"]]
+    f = {
+        "varreduras_30d": _log_ratio(sum(m["urlscan_30d"] or 0 for m in members), 30) if stats else None,
+        "varreduras_total": _log_ratio(sum(m["urlscan_total"] or 0 for m in members), 150) if stats else None,
+        "dominios": _cap(math.log2(len({registrable(m["domain"]) for m in alive}) or 1) / math.log2(10)),
+        "operacao": _cap(math.log2(max(1, op_domains)) / math.log2(16)),
+        "rotacao_pixel": _cap((len(pixels) - 1) / 4) if pixels else 0.0,
+        "longevidade": _cap(age_days / 365),
+        "anuncios_volume": _log_ratio(sum(m["ad_count"] or 0 for m in members), 50) if ads else None,
+        "anuncios_idade": _cap(max(m["ad_max_days"] or 0 for m in members) / 120) if ads else None,
+        "redes": _cap(len(nets) / 3),
+        "tranco": _cap(1 - math.log10(min(ranks)) / 6) if ranks else 0.0,
+    }
+    den = sum(ESCALA_W[k] for k, v in f.items() if v is not None)
+    total = 100 * sum(ESCALA_W[k] * v for k, v in f.items() if v) / (den or 1)
+    parts = {k: round(ESCALA_W[k] * v, 1) for k, v in f.items() if v}
+    return round(total, 1), parts
+
+
 def offers(con):
     """Agrupa domínios em ofertas: mesmo produto no checkout, senão mesma operação."""
     rows = [r for r in con.execute("SELECT * FROM domains WHERE score IS NOT NULL")]
+    pixels = defaultdict(set)  # pixels da Meta já vistos em cada domínio (no tempo)
+    for r in con.execute("SELECT domain, value FROM links WHERE kind='fbpixel'"):
+        pixels[r["domain"]].add(r["value"])
+    if con.execute("SELECT 1 FROM sqlite_master WHERE name='signal_history'").fetchone():
+        for r in con.execute("SELECT domain, value FROM signal_history WHERE kind='fbpixel'"):
+            pixels[r["domain"]].add(r["value"])
     cluster_count = defaultdict(int)  # domínios-oferta por operação
     for r in rows:
         cluster_count[r["cluster_id"]] += 1
@@ -228,7 +276,6 @@ def offers(con):
         members.sort(key=lambda r: r["score"] or 0, reverse=True)
         top = members[0]
         alive = [m for m in members if m["alive"]]
-        bonus = 3 * math.log2(len(alive)) if len(alive) > 1 else 0
         firsts = [m["domain_created"] or m["cert_first"] or m["urlscan_first"]
                   or (m["first_discovered"] or "")[:10] for m in members]
         firsts += [(dt.date.today() - dt.timedelta(days=m["ad_max_days"])).isoformat()
@@ -242,19 +289,24 @@ def offers(con):
         anunciante = (f"fb/{soc['fb']}" if soc.get("fb") else
                       f"ig/{soc['ig']}" if soc.get("ig") else
                       soc.get("brand") or soc.get("gads") or (f"wa/{soc['wa']}" if soc.get("wa") else ""))
-        # Porte: quanto a oferta "cheira" a operação grande. Soma sinais de escala.
         op_domains = cluster_count[top["cluster_id"]]
         vdesde = min((f for f in firsts if f), default="")
         age_days = (dt.date.today() - dt.date.fromisoformat(vdesde)).days if vdesde else 0
-        big = (int(op_domains >= 3) + int(op_domains >= 8) + int(bool(trks))
-               + int(len(nets) >= 2) + int(age_days >= 90)
-               + int((top["urlscan_30d"] or 0) >= 20)
-               + int((top["ad_max_days"] or 0) >= 60))
-        porte = "grande" if big >= 3 else "média" if big >= 1 else "pequena"
+        esc, esc_parts = escala(members, op_domains, {p for m in members for p in pixels[m["domain"]]},
+                                nets, age_days)
+        forca = max(m["forca"] or 0 for m in members)
+        # Escala sem funil é só popularidade (sites comuns também têm muitas varreduras):
+        # ela pesa inteira a partir de Força 50 e proporcionalmente abaixo disso.
+        offer_score = OFFER_BLEND * forca + (1 - OFFER_BLEND) * esc * min(1.0, forca / 50)
+        if not alive:
+            offer_score *= 0.25  # nenhum domínio no ar
+        porte = "grande" if esc >= 50 else "média" if esc >= 25 else "pequena"
         out.append({
             "oferta": key,
-            "score": round(min(100, (top["score"] or 0) + bonus), 1),
-            "forca": top["forca"],
+            "score": round(offer_score, 1),
+            "forca": round(forca, 1),
+            "escala": esc,
+            "escala_detalhe": json.dumps(esc_parts, ensure_ascii=False),
             "tracao": top["tracao"],
             "tendencia": top["trend"],
             "estagio": top["stage"],

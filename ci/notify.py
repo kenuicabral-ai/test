@@ -95,8 +95,8 @@ def line(i, o):
         bits.append("cloaking")
     title = (o.get("nicho") or o.get("titulo") or "")[:60]
     forca = f"F{o['forca']}" if o.get("forca") else ""
-    tracao = f"T{o['tracao']}" if o.get("tracao") else ""
-    ft = (" (" + " ".join(x for x in (forca, tracao) if x) + ")") if (forca or tracao) else ""
+    escala = f"E{o['escala']}" if o.get("escala") else ""
+    ft = (" (" + " ".join(x for x in (forca, escala) if x) + ")") if (forca or escala) else ""
     ads = []
     if o.get("biblioteca_anuncios"):
         ads.append(f"<a href=\"{e(o['biblioteca_anuncios'])}\">Meta: {e(o.get('anunciante') or 'anunciante')}</a>")
