@@ -84,8 +84,10 @@ def run(con, cfg):
         if is_offer(r):
             cluster_size[r["cluster_id"]] += 1
             cluster_pixels[r["cluster_id"]] |= pixels[r["domain"]]
-    # O que é mensurável nesta rodada decide o denominador de TRAÇÃO.
-    has_ads = any((r["ad_count"] or 0) > 0 for r in rows)
+    # O que é mensurável decide o denominador de TRAÇÃO. Anúncios: só para os domínios
+    # consultados numa fonte de anúncios (extensão, Apify, Google); quem não foi consultado
+    # não é punido por um dado que não existe.
+    has_ads = any(r["ad_count"] is not None for r in rows)
     has_history = con.execute(
         "SELECT 1 FROM snapshots WHERE day <= date('now','localtime','-7 days') LIMIT 1").fetchone()
     t = dt.date.today()
@@ -142,17 +144,18 @@ def run(con, cfg):
             "renovacoes_cert": _cap((r["cert_count"] or 0) / 6),
             "momento": mom or 0.0,
         }
-        # Denominador = só os sinais mensuráveis hoje.
+        # Denominador = só os sinais mensuráveis para este domínio.
+        ads_known = r["ad_count"] is not None
         tracao_den = 0
         for k, w in tw.items():
-            if k in AD_PARTS and not has_ads:
+            if k in AD_PARTS and not ads_known:
                 continue
             if k == "momento" and not has_history:
                 continue
             tracao_den += w
         forca = 100 * sum(fw[k] * v for k, v in forca_f.items()) / sum(fw.values())
         tracao = 100 * sum(tw[k] * v for k, v in tracao_f.items()
-                           if not (k in AD_PARTS and not has_ads)
+                           if not (k in AD_PARTS and not ads_known)
                            and not (k == "momento" and not has_history)) / (tracao_den or 1)
         score = BLEND * forca + (1 - BLEND) * tracao
         if r["alive"] == 0:
@@ -238,7 +241,7 @@ def offers(con):
                 soc.setdefault(k, v)
         anunciante = (f"fb/{soc['fb']}" if soc.get("fb") else
                       f"ig/{soc['ig']}" if soc.get("ig") else
-                      soc.get("brand") or (f"wa/{soc['wa']}" if soc.get("wa") else ""))
+                      soc.get("brand") or soc.get("gads") or (f"wa/{soc['wa']}" if soc.get("wa") else ""))
         # Porte: quanto a oferta "cheira" a operação grande. Soma sinais de escala.
         op_domains = cluster_count[top["cluster_id"]]
         vdesde = min((f for f in firsts if f), default="")
@@ -262,7 +265,9 @@ def offers(con):
             "anunciante": anunciante,
             "biblioteca_anuncios": ad_library_url(soc.get("fb"), soc.get("fb_id"), soc.get("brand")),
             # Google/YouTube: exato pelo domínio. TikTok: pelo nome do anunciante, se roda lá.
-            "anuncios_google": google_ads_url(top["domain"]),
+            "anuncios_google": (f"https://adstransparency.google.com/advertiser/{soc['gads_id']}?region=anywhere"
+                                if soc.get("gads_id") else google_ads_url(top["domain"])),
+            "anunciante_google": soc.get("gads", ""),
             "anuncios_tiktok": tiktok_ads_url(soc.get("brand")) if "tiktok" in nets else "",
             "instagram": f"https://instagram.com/{soc['ig']}" if soc.get("ig") else "",
             "whatsapp": f"https://wa.me/{soc['wa']}" if soc.get("wa") else "",
