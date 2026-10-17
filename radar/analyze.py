@@ -74,10 +74,17 @@ def _render(domain, timeout, proxy=None):
 
 
 def analyze_one(domain, render=False, timeout=20, proxy=None):
+    # Domínio sem DNS está fora do ar: responde na hora, sem esperar dois timeouts.
+    try:
+        ip = socket.gethostbyname(domain)
+    except OSError:
+        return {"domain": domain, "status": None, "final_url": None, "final_domain": None,
+                "sig": extract(""), "cloaked": False, "ip": None}
     status, final, html = (_render(domain, timeout, proxy) if render
                            else _fetch(domain, "ad", timeout, proxy))
     sig = extract(html)
-    bot_status, bot_final, bot_html = _fetch(domain, "bot", timeout)
+    # Se nem a visita de "clique de anúncio" respondeu, a do robô não vai responder.
+    bot_status, bot_final, bot_html = _fetch(domain, "bot", timeout) if status else (None, None, "")
     bot = extract(bot_html)
     ad_hits = bool(sig["players"] or sig["checkouts"])
     bot_hits = bool(bot["players"] or bot["checkouts"])
@@ -85,10 +92,6 @@ def analyze_one(domain, render=False, timeout=20, proxy=None):
     bot_dom = norm_domain(bot_final) if bot_final else None
     cloaked = (ad_hits and not bot_hits) or (
         final_dom and bot_dom and final_dom != bot_dom and ad_hits)
-    try:
-        ip = socket.gethostbyname(domain)
-    except OSError:
-        ip = None
     return {
         "domain": domain, "status": status, "final_url": final, "final_domain": final_dom,
         "sig": sig, "cloaked": bool(cloaked), "ip": ip,
@@ -118,6 +121,12 @@ def save(con, res):
     con.execute("""DELETE FROM links WHERE domain=? AND kind IN
                    ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','adnet','social','video')""", (d,))
     con.execute("DELETE FROM links WHERE domain=? AND kind='tracker'", (d,))
+    if s.get("dead"):
+        # Página de estacionamento/expirado: os IDs (GA, GTM) são do provedor de
+        # hospedagem, não do anunciante; ligariam dezenas de domínios sem relação.
+        if res["ip"]:
+            add_link(con, d, "ip", res["ip"])
+        return
     for kind, vals in s["tracking"].items():
         for v in vals:
             add_link(con, d, kind, v)
@@ -146,9 +155,28 @@ def save(con, res):
 
 
 def pending(con, hours):
-    q = """SELECT domain FROM domains
-           WHERE last_analyzed IS NULL OR last_analyzed < datetime('now', 'localtime', ?)
-           ORDER BY last_analyzed IS NOT NULL, first_discovered DESC"""
+    """Fila de análise, do mais promissor para o menos promissor.
+
+    0. novos que o urlscan viu com player/checkout, ou vindos de anúncio/semente/redirect;
+    1. reanálise de quem já é oferta;
+    2. novos com testemunha de tracker, ou da expansão/certificados;
+    3. novos só com testemunha de rede de anúncio (pixel de nativo: muito volume, pouca oferta);
+    4. reanálise do resto.
+    """
+    q = """WITH seen AS (
+             SELECT domain, MAX(value LIKE 'player:%' OR value LIKE 'checkout:%') AS strong,
+                    MAX(value LIKE 'tracker:%') AS tracker
+             FROM links WHERE kind='seen' GROUP BY domain)
+           SELECT d.domain FROM domains d LEFT JOIN seen s ON s.domain = d.domain
+           WHERE d.last_analyzed IS NULL OR d.last_analyzed < datetime('now', 'localtime', ?)
+           ORDER BY CASE
+             WHEN d.last_analyzed IS NULL AND (s.strong OR d.sources LIKE '%anuncios%'
+                  OR d.sources LIKE '%apify%' OR d.sources LIKE '%manual%'
+                  OR d.sources LIKE '%adspy%' OR d.sources LIKE '%redirect%') THEN 0
+             WHEN d.last_analyzed IS NOT NULL AND d.score IS NOT NULL THEN 1
+             WHEN d.last_analyzed IS NULL AND (s.tracker OR s.domain IS NULL) THEN 2
+             WHEN d.last_analyzed IS NULL THEN 3
+             ELSE 4 END, d.first_discovered DESC"""
     return [r["domain"] for r in con.execute(q, (f"-{hours} hours",))]
 
 

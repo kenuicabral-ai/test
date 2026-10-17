@@ -1,0 +1,29 @@
+# Changelog
+
+Mudanças do radar, da mais recente para a mais antiga. Cada entrada diz o que mudou, por quê (o que os dados mostraram) e como foi verificado.
+
+## 2026-10-17 — Fila de análise por prioridade; páginas estacionadas não viram "operação" (PR #2)
+
+**Por quê (rodada #21, a primeira com o PR #1):** a descoberta incremental trouxe 25.998 domínios novos, mas só 2.823 foram analisados e 23.585 ficaram na fila, na ordem de descoberta; 23.302 vinham só do pixel de nativos (anunciantes comuns). O 2º lugar era `viralpackage.shop` ("Your domain is expired"): 28 páginas de estacionamento da Hostinger ligadas pelo mesmo Google Analytics do provedor (`UA-26575989-44`). As 7.920 varreduras feitas no urlscan não foram marcadas porque o crt.sh não teve tempo, e seriam refeitas todo dia.
+
+- Fila de análise: primeiro o que o urlscan viu com player/checkout e o que veio de anúncio, semente ou redirect; depois reanálise das ofertas; tracker; por último o pixel de nativos.
+- Domínio sem DNS responde na hora; página que não abriu pula a visita do robô. CI com 48 análises em paralelo e timeout de 15 s.
+- urlscan e crt.sh com datas separadas: crt.sh fora do ar não faz refazer as varreduras.
+- Buscas de pixel de nativos só leem o que é novo, sem histórico de 180 dias.
+- Página estacionada/expirada não guarda IDs de rastreamento (são do provedor). Novos títulos de página morta: "domain is expired", "domínio expirado".
+- Chave de produto `samcart:tracker` descartada (juntava 12 lojas).
+
+**Verificado:** no banco de produção, a fila nova põe os 2.372 domínios com testemunha de player/checkout na frente; 150 analisados com 35% de VSL/checkout, contra 7,6% na ordem antiga. 21 testes com rede simulada.
+
+## 2026-10-17 — Cota do urlscan, idade real, ofertas sem agrupamento falso (PR #1)
+
+**Por quê:** na rodada de 16/10 a cota do urlscan já estava esgotada na 1ª busca (0 domínios novos): cada push disparava uma rodada inteira e as canceladas não salvavam nada. O 1º lugar do ranking era falso (`centrorobux.com.br` juntava 20 lojas sem relação pela chave `cartpanda:shopify`). Só 120 de 2.296 domínios tinham idade e quase tudo aparecia como "nova".
+
+- Descoberta incremental no urlscan: cada busca lembra até onde foi lida; por dia só o que é novo; histórico de 180 dias preenchido aos poucos com no máximo metade da cota.
+- Cota lida no próprio urlscan e repartida entre as etapas; varreduras e expansão por IP em lote (40 por busca).
+- Idade pela data de registro do domínio (o urlscan já informa, sem custo).
+- Chaves de produto genéricas e arquivos das plataformas não agrupam mais ofertas; lojas virtuais saem do ranking; "Loja Fechada", domínio à venda e 404 disfarçado contam como fora do ar.
+- Nativos pelo pixel do anunciante (Taboola `tfa.js`, Outbrain `amplify`) em vez dos widgets de portais.
+- Workflow: rodada nova espera a atual; dados salvos mesmo se cancelada (só com banco íntegro); testes a cada push.
+
+**Verificado:** rodada real numa cópia do banco, sem chave: 1.496 domínios novos e varreduras de 950 domínios com menos de 100 buscas; 2.342 domínios com idade real; 15 testes com urlscan simulado.

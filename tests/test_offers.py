@@ -2,7 +2,7 @@ import datetime as dt
 import json
 
 from radar import analyze, graph, score
-from radar.db import add_domain, update
+from radar.db import add_domain, add_link, update
 from radar.signatures import _checkout_of, extract, seed_signal, valid_product_key
 
 
@@ -30,7 +30,7 @@ def test_checkout_keys():
 
 def test_old_generic_keys_are_cleaned():
     for k in ("cartpanda:shopify", "cartpanda:register", "cartpanda:ex-ocu", "greenn:redirect",
-              "samcart:checkouts", "samcart:products"):
+              "samcart:checkouts", "samcart:products", "samcart:tracker"):
         assert not valid_product_key(k)
     assert valid_product_key("hotmart:J95785385P")
 
@@ -45,6 +45,11 @@ def test_dead_pages():
     assert extract("<title>Loja Fechada</title>")["dead"]
     assert extract('<a href="https://accounts.cartpanda.com/register?ref=closed-store">x</a>')["dead"]
     assert extract("<title>Domain is for sale</title>")["dead"]
+    assert extract("<title>Your domain is expired</title>")["dead"]
+    assert extract("<title>Parked Domain name on Hostinger DNS system</title>")["dead"]
+    assert extract("<title>Este domínio expirou</title>")["dead"]
+    assert extract("<title>Domínio expirado</title>")["dead"]
+    assert not extract("<title>Protocolo Expira Gordura</title>")["dead"]
     assert not extract("<title>Assista até o final antes que saia do ar</title>")["dead"]
 
 
@@ -101,3 +106,17 @@ def test_same_product_affiliates_group(con):
     score.run(con, {})
     offs = score.offers(con)
     assert len(offs) == 1 and offs[0]["oferta"] == "cartpanda:211836256" and offs[0]["dominios"] == 2
+
+
+def test_parked_pages_do_not_form_an_operation(con):
+    """2º lugar falso da rodada #21: 28 páginas da Hostinger com o mesmo UA viraram 'operação'."""
+    parked = '<title>Parked Domain name on Hostinger DNS system</title><script>ga("create","UA-26575989-44")</script>'
+    for i in range(5):
+        _analyzed(con, f"parado{i}.shop", parked)
+        add_link(con, f"parado{i}.shop", "seen", "player:vturb")  # testemunha antiga, de quando vendia
+    graph.run(con, {})
+    score.run(con, {})
+    rows = con.execute("SELECT alive, cluster_id FROM domains").fetchall()
+    assert all(r["alive"] == 0 for r in rows)
+    assert len({r["cluster_id"] for r in rows}) == 5
+    assert con.execute("SELECT COUNT(*) FROM links WHERE kind='ua'").fetchone()[0] == 0

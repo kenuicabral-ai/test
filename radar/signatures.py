@@ -90,7 +90,7 @@ _SKIP_SEGMENTS = {"", "pt-br", "pt", "en", "es", "login", "static", "assets", "i
                   "scripts", "cdn", "cartx-ecomm-ui-asset", "public", "app", "conversion",
                   # CartPanda: integração com Shopify, cadastro/loja fechada e upsell 1-clique
                   "shopify", "register", "ex-ocu", "next-offer", "redirect", "libs",
-                  "checkouts", "products"}
+                  "checkouts", "products", "tracker"}
 # Subdomínios de plataforma que não são checkout (painel, ajuda).
 _NOT_CHECKOUT_SUB = {"accounts", "help", "blog", "docs", "status"}
 # Arquivos da plataforma (script, estilo, imagem): mostram que a página usa o checkout,
@@ -266,6 +266,8 @@ VSL_TEXT = re.compile(
 DEAD_TITLE = re.compile(
     r"loja fechada|store (?:is )?closed|account (?:has been )?suspended|conta suspensa|"
     r"(?:domain|domínio) (?:is |está )?(?:for sale|à venda)|is for sale|parked domain|"
+    r"(?:domain|domínio)(?: name)? (?:is |has |está |foi )?(?:been )?(?:expired|expirado)|"
+    r"domain (?:has )?expired|domínio expirou|"
     r"\b404\b|page not found|página não encontrada",
     re.I,
 )
