@@ -2,6 +2,16 @@
 
 Mudanças do radar, da mais recente para a mais antiga. Cada entrada diz o que mudou, por quê (o que os dados mostraram) e como foi verificado.
 
+## 2026-10-17 — Caminho para os anúncios da Meta em quase toda oferta (PR #7)
+
+**Por quê:** 239 das 300 ofertas do topo têm o pixel da Meta (anunciam no Facebook/Instagram), mas só 18% tinham link para a Biblioteca de Anúncios — porque o link só era gerado quando achávamos o Facebook do anunciante na página, o que falha na maioria das VSLs (cloaking, ou a página simplesmente não linka a fanpage).
+
+- **page_id numérico** reconhecido em mais formatos (`facebook.com/Nome-Da-Pagina-123…`, `"pageId":…`, `fb_page_id`): abre os anúncios exatos do anunciante.
+- **Busca por nome do produto:** quando a página tem pixel da Meta mas não achamos o anunciante, o radar gera um link de busca na Biblioteca pelo nome do produto tirado do título da VSL (`VSL - Linfozen` → `Linfozen`), ignorando títulos genéricos ou com acento quebrado. É o que um humano faria à mão.
+- O ranking distingue **"ver anúncios"** (exato, pelo anunciante) de **"Meta (busca)"** (ponto de partida por palavra), para não prometer precisão que não tem.
+
+**Verificado no banco de produção:** cobertura de link Meta no top 300 subiu de 18% para 76% (14 exatos, 216 por busca). 52 testes (sem pixel Meta não gera busca; page_id numérico dá link exato).
+
 ## 2026-10-17 — Assinatura da página escalada: heatmaps/gravadores de sessão e VSL por HLS (PR #6)
 
 **Por quê:** operação de resposta direta que investe em otimização instala gravador de sessão e mapa de calor (Microsoft Clarity, Hotjar, Lucky Orange, FullStory, Smartlook, Mouseflow). É um sinal de escala que o radar ignorava, e que separa o funil amador do profissional. Algumas VSLs também servem o vídeo por HLS (`.m3u8`) sem usar um player conhecido.
