@@ -67,6 +67,7 @@ DEFAULT_CONFIG = {
     "urlscan_backfill_days": 180,  # histórico preenchido aos poucos até aqui
     "urlscan_discovery_share": 0.5,  # fração da cota que o histórico pode usar
     "urlscan_batch": 40,  # domínios/IPs por busca nas varreduras e na expansão
+    "urlscan_backfill_adnet": False,  # histórico das buscas de pixel de nativos (muito volume)
     "urlscan_interval": 2.0,
     "certstream_url": "wss://certstream.calidog.io/",
     "certstream_patterns": [
@@ -124,47 +125,53 @@ def discover(con, cfg):
 def enrich(con, cfg, share=1.0):
     step("Enriquecimento: varreduras e idade (urlscan), certificados e irmãos (crt.sh)")
     cutoff = (dt.datetime.now() - dt.timedelta(days=cfg["enrich_days"])).isoformat()
-    rows = [r for r in con.execute(
-        "SELECT * FROM domains ORDER BY last_enriched IS NOT NULL, COALESCE(score, 0) DESC")
-        if is_offer(r) and (not r["last_enriched"] or r["last_enriched"] < cutoff)]
-    print(f"  {len(rows)} ofertas para enriquecer")
+    offers = [r for r in con.execute("SELECT * FROM domains ORDER BY COALESCE(score, 0) DESC")
+              if is_offer(r)]
+    # Cada fonte tem a sua data: o urlscan não refaz as varreduras porque o crt.sh
+    # (lento, cai com frequência) não teve tempo, nem o contrário.
+    stats_todo = [r["domain"] for r in offers if not r["stats_checked"] or r["stats_checked"] < cutoff]
+    cert_todo = [r["domain"] for r in offers if not r["last_enriched"] or r["last_enriched"] < cutoff]
+    print(f"  {len(offers)} ofertas; varreduras pendentes: {len(stats_todo)}, "
+          f"certificados pendentes: {len(cert_todo)}")
     g = cfg.get("_deadline")
     deadline = time.time() + max(0, g - time.time()) * share if g else None
     # urlscan em lotes: uma busca traz as varreduras de dezenas de domínios.
     batch = cfg.get("urlscan_batch", 40)
-    doms = [r["domain"] for r in rows]
-    stats_ok = set()
-    for i in range(0, len(doms), batch):
+    stats_ok = 0
+    for i in range(0, len(stats_todo), batch):
         if (deadline and time.time() > deadline) or not sources.urlscan_available():
             break
-        stats_ok |= sources.urlscan_stats(con, doms[i:i + batch], cfg)
+        for d in sources.urlscan_stats(con, stats_todo[i:i + batch], cfg):
+            update(con, d, stats_checked=now())
+            stats_ok += 1
         con.commit()
-    print(f"  varreduras do urlscan: {len(stats_ok)}/{len(doms)} domínios")
+    print(f"  varreduras do urlscan: {stats_ok}/{len(stats_todo)} domínios")
     new = done = 0
-    for i, r in enumerate(rows, 1):
+    for i, d in enumerate(cert_todo, 1):
         if deadline and time.time() > deadline:
-            print(f"  tempo desta etapa esgotado; {len(rows) - i + 1} ficam para a próxima")
+            print(f"  tempo desta etapa esgotado; {len(cert_todo) - i + 1} certificados ficam para a próxima")
             break
         if sources.BREAKER["crtsh_fail"] >= 3:
-            print(f"  crt.sh indisponível; {len(rows) - i + 1} ficam para a próxima")
+            print(f"  crt.sh indisponível; {len(cert_todo) - i + 1} certificados ficam para a próxima")
             break
-        d = r["domain"]
         try:
-            for sib, serial in sources.cert_history(con, d, cfg):
-                if add_domain(con, sib, "grafo:cert"):
-                    new += 1
-                add_link(con, sib, "cert", serial)
+            sibs = sources.cert_history(con, d, cfg)
         except Exception as e:
             print(f"  erro ao enriquecer {d}: {e}")
             continue
-        if d in stats_ok and sources.BREAKER["crtsh_fail"] < 3:
-            update(con, d, last_enriched=now())  # só marca se as duas fontes responderam
-            done += 1
+        if sibs is None:
+            continue  # crt.sh não respondeu: tenta na próxima rodada
+        for sib, serial in sibs:
+            if add_domain(con, sib, "grafo:cert"):
+                new += 1
+            add_link(con, sib, "cert", serial)
+        update(con, d, last_enriched=now())
+        done += 1
         if i % 20 == 0:
             con.commit()
-            print(f"  {i}/{len(rows)}")
+            print(f"  {i}/{len(cert_todo)}")
     con.commit()
-    print(f"  enriquecidas: {done}; domínios-irmãos novos via certificado: {new}")
+    print(f"  certificados: {done}; domínios-irmãos novos via certificado: {new}")
 
 
 def tranco(con, cfg):

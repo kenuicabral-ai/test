@@ -17,7 +17,10 @@ cfg.update({
     # Apify é opcional e pago: só roda se VOCÊ pedir (APIFY_AUTO=N ou APIFY_SEARCHES).
     # Ter o token não gasta nada sozinho.
     "apify_auto_advertisers": int(os.environ.get("APIFY_AUTO") or 0),
-    "workers": 24,
+    # Análise é espera de rede: mais conexões em paralelo, e página que não responde
+    # em 15 s fica para a próxima (a fila chegou a 23 mil domínios numa rodada).
+    "workers": 48,
+    "timeout": 15,
     "max_minutes": int(os.environ.get("RADAR_MAX_MINUTES") or 50),
     # Máx. de varreduras por busca em cada leitura (sem chave, cada página traz 100).
     "urlscan_max_per_query": 1000 if os.environ.get("URLSCAN_API_KEY") else 300,

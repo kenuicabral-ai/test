@@ -229,6 +229,10 @@ def discover_urlscan(con, cfg):
                 save(q, now_ts, first if complete else oldest)
 
     # 2) Histórico, do ponto mais antigo já lido para trás, com a cota que sobrar.
+    # Pixel de rede nativa traz dezenas de milhares de anunciantes comuns por semestre:
+    # dele só interessa o que é novo (a fila de análise não daria conta do histórico).
+    backfill = [q for q in cfg["urlscan_queries"]
+                if cfg.get("urlscan_backfill_adnet") or (seed_signal(q) or ("",))[0] != "adnet"]
     left = urlscan_left()
     QUOTA["cap"] = (QUOTA["used"] + int(left * cfg.get("urlscan_discovery_share", 0.5))
                     if left is not None else None)
@@ -236,7 +240,7 @@ def discover_urlscan(con, cfg):
         progress = True
         while progress and urlscan_available():
             progress = False
-            for q in cfg["urlscan_queries"]:
+            for q in backfill:
                 st = state(q)
                 if not (st and st["oldest"] and st["oldest"] > horizon) or not urlscan_available():
                     continue
@@ -246,8 +250,8 @@ def discover_urlscan(con, cfg):
                     progress = True
     finally:
         QUOTA["cap"] = None
-    behind = [r["oldest"][:10] for r in con.execute("SELECT oldest FROM discovery")
-              if r["oldest"] and r["oldest"] > horizon]
+    behind = [r["oldest"][:10] for r in con.execute("SELECT query, oldest FROM discovery")
+              if r["query"] in backfill and r["oldest"] and r["oldest"] > horizon]
     if behind:
         log(f"  histórico: {len(behind)} buscas ainda não chegaram a {horizon[:10]} "
             f"(a mais atrasada está em {min(behind)}); continua nas próximas rodadas")
@@ -328,8 +332,9 @@ def urlscan_ip_domains(ips, cfg):
 
 # ------------------------------------------------------------------ crt.sh
 def crtsh(domain, cfg):
+    """Certificados do domínio. None = crt.sh não respondeu (tenta de novo depois)."""
     if BREAKER["crtsh_fail"] >= 3:
-        return []
+        return None
     for q in ("%." + domain, domain):
         try:
             r = net.get(f"https://crt.sh/?q={quote(q)}&output=json", headers={"User-Agent": UA},
@@ -345,7 +350,7 @@ def crtsh(domain, cfg):
     BREAKER["crtsh_fail"] += 1
     if BREAKER["crtsh_fail"] == 3:
         log("  crt.sh: 3 falhas seguidas; consultas ao crt.sh pausadas nesta rodada.")
-    return []
+    return None
 
 
 def _registrable(host):
@@ -356,8 +361,13 @@ def _registrable(host):
 
 
 def cert_history(con, domain, cfg):
-    """Idade (1º certificado), vida (último) e irmãos no mesmo certificado."""
+    """Idade (1º certificado), vida (último) e irmãos no mesmo certificado.
+
+    None quando o crt.sh não respondeu (o domínio fica para a próxima rodada).
+    """
     certs = crtsh(domain, cfg)
+    if certs is None:
+        return None
     if not certs:
         return set()
     befores = sorted(c.get("not_before", "")[:10] for c in certs if c.get("not_before"))

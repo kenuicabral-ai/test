@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS domains(
   ad_count INTEGER, ad_video INTEGER, ad_max_days INTEGER, ad_pages INTEGER,
   tranco_rank INTEGER, cluster_id INTEGER, score REAL, score_parts TEXT, stage TEXT,
   last_enriched TEXT, classified INTEGER, forca REAL, tracao REAL, trend REAL,
-  domain_created TEXT, store INTEGER
+  domain_created TEXT, store INTEGER, stats_checked TEXT
 );
 CREATE TABLE IF NOT EXISTS links(
   domain TEXT, kind TEXT, value TEXT, PRIMARY KEY(domain, kind, value)
@@ -73,7 +73,7 @@ def connect(path):
     # Migração: acrescenta colunas novas a bancos criados por versões anteriores.
     have = {r["name"] for r in con.execute("PRAGMA table_info(domains)")}
     for col, decl in (("forca", "REAL"), ("tracao", "REAL"), ("trend", "REAL"),
-                      ("domain_created", "TEXT"), ("store", "INTEGER")):
+                      ("domain_created", "TEXT"), ("store", "INTEGER"), ("stats_checked", "TEXT")):
         if col not in have:
             con.execute(f"ALTER TABLE domains ADD COLUMN {col} {decl}")
     if "store" not in have:  # marca as lojas já analisadas, sem esperar a próxima análise
