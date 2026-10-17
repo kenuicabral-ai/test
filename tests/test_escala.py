@@ -68,3 +68,27 @@ def test_missing_signals_do_not_lower_scale(con):
     _offer(con, "b.com", scans30=0, scans=0)
     e = {o["dominio_principal"]: o["escala"] for o in _rank(con)}
     assert e["a.com"] > e["b.com"]
+
+
+def test_heatmap_adds_force_and_scale(con):
+    from radar.signatures import extract
+    base = '<script src="https://scripts.converteai.net/p.js"></script><a href="https://pay.hotmart.com/A1">c</a>'
+    _save = lambda d, html: (add_domain(con, d, "t"),
+                             analyze.save(con, {"domain": d, "status": 200, "final_url": f"https://{d}/",
+                                                "final_domain": d, "sig": extract(html), "cloaked": False, "ip": None}))
+    _save("comheat.com", base + '<script>(function(c,l,a,r,i,t,y){})(window,document,"clarity","script","x")</script>')
+    _save("semheat.com", base)
+    graph.run(con, {})
+    score.run(con, {})
+    o = {x["dominio_principal"]: x for x in score.offers(con)}
+    assert o["comheat.com"]["forca"] > o["semheat.com"]["forca"]
+    assert o["comheat.com"]["escala"] > o["semheat.com"]["escala"]
+    assert o["comheat.com"]["heatmap"] == "clarity"
+    assert '"heatmap"' in o["comheat.com"]["escala_detalhe"]
+
+
+def test_hls_m3u8_counts_as_player(con):
+    from radar.signatures import extract
+    s = extract('<video><source src="https://cdn.vz.net/abc/master.m3u8"></video>')
+    assert s["players"] == ["hls"]
+    assert "hls" not in __import__("radar.signatures", fromlist=["STRONG_PLAYERS"]).STRONG_PLAYERS

@@ -21,7 +21,7 @@ from .signatures import STRONG_PLAYERS, ad_library_url, google_ads_url, tiktok_a
 
 FORCA_W = {"checkout": 15, "player_forte": 12, "player": 5, "texto_vsl": 3,
            "cloaking": 6, "trafego_pago": 10, "omnichannel": 5, "tracker_pro": 9, "operacao": 9,
-           "rotacao": 7}
+           "rotacao": 7, "heatmap": 6}
 TRACAO_W = {"anuncio_idade": 20, "anuncio_video": 6, "anuncio_volume": 8, "anuncio_paginas": 4,
             "trafego_tranco": 10, "varreduras_30d": 8, "varreduras_total": 4,
             "longevidade": 8, "renovacoes_cert": 3, "momento": 10}
@@ -42,6 +42,7 @@ ESCALA_W = {
     "anuncios_idade": 10,
     "redes": 5,             # várias redes de anúncio ao mesmo tempo
     "tranco": 5,
+    "heatmap": 6,           # grava e analisa sessões: operação que investe em otimizar
 }
 OFFER_BLEND = 0.4  # score da oferta: 40% Força (é um funil de verdade?) + 60% Escala
 
@@ -83,6 +84,9 @@ def run(con, cfg):
     trackers = defaultdict(set)
     for r in con.execute("SELECT domain, value FROM links WHERE kind='tracker'"):
         trackers[r["domain"]].add(r["value"])
+    heatmaps = defaultdict(set)
+    for r in con.execute("SELECT domain, value FROM links WHERE kind='heatmap'"):
+        heatmaps[r["domain"]].add(r["value"])
     # Testemunha do urlscan: o que a página carregou, mesmo que ela nos mostre a isca.
     refresh_seen(con)
     seen = defaultdict(lambda: {"player": set(), "checkout": set(), "tracker": set()})
@@ -148,6 +152,8 @@ def run(con, cfg):
             "operacao": _cap((cluster_size[r["cluster_id"]] - 1) / 8),
             # Rotação de pixel na mesma operação = trocou de pixel e seguiu escalando.
             "rotacao": _cap((len(cluster_pixels[r["cluster_id"]]) - 1) / 3),
+            # Heatmap/gravador de sessão: operação que investe em otimizar conversão.
+            "heatmap": 1.0 if heatmaps[r["domain"]] else 0.0,
         }
         tracao_f = {
             "anuncio_idade": _cap((r["ad_max_days"] or 0) / 90),
@@ -203,7 +209,7 @@ def run(con, cfg):
           f"histórico={'sim' if has_history else 'ainda não'})")
 
 
-def escala(members, op_domains, pixels, nets, age_days):
+def escala(members, op_domains, pixels, nets, age_days, heat=False):
     """Escala da oferta e de onde veio cada ponto. Só entram os sinais medidos para ela."""
     from .db import registrable
     alive = [m for m in members if m["alive"]]
@@ -221,6 +227,7 @@ def escala(members, op_domains, pixels, nets, age_days):
         "anuncios_idade": _cap(max(m["ad_max_days"] or 0 for m in members) / 120) if ads else None,
         "redes": _cap(len(nets) / 3),
         "tranco": _cap(1 - math.log10(min(ranks)) / 6) if ranks else 0.0,
+        "heatmap": 1.0 if heat else 0.0,
     }
     den = sum(ESCALA_W[k] for k, v in f.items() if v is not None)
     total = 100 * sum(ESCALA_W[k] * v for k, v in f.items() if v) / (den or 1)
@@ -243,15 +250,18 @@ def offers(con):
     prod = defaultdict(set)
     adnet = defaultdict(set)
     trk = defaultdict(set)
+    heat = defaultdict(set)
     social = defaultdict(dict)
     for r in con.execute(
-            "SELECT domain, kind, value FROM links WHERE kind IN ('product','adnet','tracker','social')"):
+            "SELECT domain, kind, value FROM links WHERE kind IN ('product','adnet','tracker','heatmap','social')"):
         if r["kind"] == "product":
             prod[r["domain"]].add(r["value"])
         elif r["kind"] == "adnet":
             adnet[r["domain"]].add(r["value"])
         elif r["kind"] == "tracker":
             trk[r["domain"]].add(r["value"])
+        elif r["kind"] == "heatmap":
+            heat[r["domain"]].add(r["value"])
         else:  # social: "fb:handle", "fb_id:123", "ig:handle", "wa:number"
             k, _, v = r["value"].partition(":")
             social[r["domain"]][k] = v
@@ -291,6 +301,7 @@ def offers(con):
                    for m in members if m["ad_max_days"]]
         nets = sorted({n for m in members for n in adnet[m["domain"]]})
         trks = sorted({n for m in members for n in trk[m["domain"]]})
+        hts = sorted({n for m in members for n in heat[m["domain"]]})
         soc = {}
         for m in members:  # junta o anunciante achado em qualquer domínio da oferta
             for k, v in social[m["domain"]].items():
@@ -302,7 +313,7 @@ def offers(con):
         vdesde = min((f for f in firsts if f), default="")
         age_days = (dt.date.today() - dt.date.fromisoformat(vdesde)).days if vdesde else 0
         esc, esc_parts = escala(members, op_domains, {p for m in members for p in pixels[m["domain"]]},
-                                nets, age_days)
+                                nets, age_days, heat=any(heat[m["domain"]] for m in members))
         forca = max(m["forca"] or 0 for m in members)
         # Escala sem funil é só popularidade (sites comuns também têm muitas varreduras):
         # ela pesa inteira a partir de Força 50 e proporcionalmente abaixo disso.
@@ -323,6 +334,7 @@ def offers(con):
             "operacao_dominios": op_domains,
             "trafego": ", ".join(nets),
             "tracker": ", ".join(trks),
+            "heatmap": ", ".join(hts),
             "anunciante": anunciante,
             "biblioteca_anuncios": ad_library_url(soc.get("fb"), soc.get("fb_id"), soc.get("brand")),
             # Google/YouTube: exato pelo domínio. TikTok: pelo nome do anunciante, se roda lá.

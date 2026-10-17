@@ -14,9 +14,27 @@ PLAYERS = {
     "vimeo": r"player\.vimeo\.com",
     "jwplayer": r"jwpcdn\.com|jwplayer\.com",
     "youtube": r"youtube\.com/embed|youtube-nocookie\.com",
+    # HLS (.m3u8) é streaming de vídeo: VSL hospedada fora dos players conhecidos.
+    "hls": r"\.m3u8\b",
 }
 # Players que quase só aparecem em VSL de resposta direta (peso maior no score).
 STRONG_PLAYERS = {"vturb", "panda", "vidalytics"}
+
+# Heatmaps e gravadores de sessão: quem paga para gravar e analisar cada visita está
+# otimizando conversão a sério. Não aparece em página amadora; é sinal de operação
+# que investe (escala). Nome -> regex no HTML.
+HEATMAPS = {
+    "clarity": r"clarity\.ms|['\"]clarity['\"]\s*,\s*['\"]script['\"]",
+    "hotjar": r"static\.hotjar\.com|\bhj\(\s*['\"]?|hjid\b",
+    "luckyorange": r"luckyorange\.com|cdn\.lo\.col",
+    "fullstory": r"fullstory\.com|\bFS\.identify|fs\.js",
+    "smartlook": r"smartlook\.com|smartlook\(",
+    "mouseflow": r"mouseflow\.com|_mfq\b",
+}
+
+
+def heatmaps(html: str) -> list:
+    return sorted(n for n, rx in HEATMAPS.items() if re.search(rx, html, re.I))
 
 # Checkouts: domínio-base -> nome da plataforma.
 CHECKOUT_HOSTS = {
@@ -507,6 +525,7 @@ def extract(html: str) -> dict:
         "tracking": tracking,
         "adnets": ad_networks(html),
         "trackers": trackers(html),
+        "heatmaps": heatmaps(html),
         "videos": video_ids(html),
         "advertiser": advertiser(html),
         "title": title,

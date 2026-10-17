@@ -2,6 +2,18 @@
 
 Mudanças do radar, da mais recente para a mais antiga. Cada entrada diz o que mudou, por quê (o que os dados mostraram) e como foi verificado.
 
+## 2026-10-17 — Assinatura da página escalada: heatmaps/gravadores de sessão e VSL por HLS (PR #6)
+
+**Por quê:** operação de resposta direta que investe em otimização instala gravador de sessão e mapa de calor (Microsoft Clarity, Hotjar, Lucky Orange, FullStory, Smartlook, Mouseflow). É um sinal de escala que o radar ignorava, e que separa o funil amador do profissional. Algumas VSLs também servem o vídeo por HLS (`.m3u8`) sem usar um player conhecido.
+
+- Detecta os seis gravadores de sessão/heatmap na página e grava como `heatmap`. Entra na Força (operação que otimiza, peso 6) e na Escala (operação inteira, peso 6).
+- Player `hls` por `.m3u8`: reforça que a página tem VSL (peso de player comum, não forte — só VTurb/Panda/Vidalytics são fortes).
+- Coluna Tracker no ranking passa a mostrar também os heatmaps.
+
+**Escopo:** isto é leitura de sinais na página, do mesmo jeito que o radar já lê pixel e checkout. Não inclui (e o projeto não fará) burlar a detecção de cloaker — navegador anti-detecção, aquecimento de cookies, simulação de comportamento humano ou exportar/injetar a sessão aprovada. O cloaking continua tratado pela testemunha do urlscan (PR #3) e pelo proxy residencial opcional.
+
+**Verificado:** 49 testes (snippets reais de Clarity e Hotjar; `.m3u8` conta como player comum, não forte).
+
 ## 2026-10-17 — Escala no topo: nota de Escala por oferta e limpeza de ruído e agrupamento (PR #5)
 
 **Por quê (banco da rodada #21, auditado em 5 ângulos com simulação no pipeline real):** o topo era só "cara de funil" (Força), e a Tração olhava um domínio só. Das 300 primeiras, 39 eram ruído: SaaS e marcas que entravam só porque o urlscan viu o tracker Hyros (porkbun.com, um CRM, uma loja de roupas), portais de curso da ThriveCart agrupados por uma pasta de CDN, ambientes de revisão da Digistore24 (ds25.io, 120 "ofertas"), páginas "Coming Soon". Produtos diferentes do mesmo fornecedor eram fundidos pelo GTM dele.

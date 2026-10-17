@@ -168,7 +168,7 @@ def run(con, out_dir):
         f"<td class='t'><a href='https://{e(o['dominio_principal'])}'>{e(o['dominio_principal'])}</a>"
         f"<div>{e(o['titulo'][:120])}</div><div class='doms'>{e(o['oferta'])}</div></td>"
         f"<td>{e(o['estagio'] or '')}</td><td>{e(o.get('porte',''))}</td>"
-        f"<td>{e(o['trafego'])}</td><td>{e(o.get('tracker',''))}</td>"
+        f"<td>{e(o['trafego'])}</td><td>{e(', '.join(x for x in (o.get('tracker',''), o.get('heatmap','')) if x))}</td>"
         f"<td>{_adv_cell(o, e)}</td><td>{_ads_cell(o, e)}</td>"
         f"<td>{e(o['checkouts'])}</td><td>{e(o['players'])}</td>"
         f"<td class='n'>{o['dominios_ativos']}/{o['dominios']}</td><td class='n'>{o['anuncios'] or ''}</td>"
@@ -266,7 +266,7 @@ document.getElementById('bd').innerHTML=rows.map(o=>`<tr>
 <td class="n">${o.rank}</td><td><span class="sc" style="background:${color(o.score)}">${o.score}</span></td>
 <td class="n">${o.forca??''}</td><td class="n" title="${esc(o.escala_detalhe||'')}">${o.escala??''}</td><td class="n">${trend(o.tendencia)}</td>
 <td class="t"><a href="https://${esc(o.dominio_principal)}" target="_blank" rel="noopener noreferrer">${esc(o.dominio_principal)}</a>${o.cloaking?' <span class="tag">cloaking</span>':''}<div>${esc(o.titulo).slice(0,120)}</div>${o.nicho?`<div class="doms">${esc(o.nicho)} · ${esc(o.promessa)}</div>`:''}${o.dominios>1?`<div class="doms">${esc(o.lista_dominios)}</div>`:''}<div class="doms">${esc(o.oferta)}</div></td>
-<td><span class="tag ${o.estagio}">${o.estagio}</span></td><td>${o.porte==='grande'?`<b>${esc(o.porte)}</b>`:esc(o.porte||'')}</td><td>${esc(o.trafego)}</td><td>${esc(o.tracker||'')}</td><td>${o.biblioteca_anuncios?`<a href="${esc(o.biblioteca_anuncios)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'ver anúncios')}</a>`:(o.whatsapp?`<a href="${esc(o.whatsapp)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'whatsapp')}</a>`:esc(o.anunciante||''))}</td><td>${ads(o)}</td><td>${esc(o.checkouts)}</td><td>${esc(o.players)}</td>
+<td><span class="tag ${o.estagio}">${o.estagio}</span></td><td>${o.porte==='grande'?`<b>${esc(o.porte)}</b>`:esc(o.porte||'')}</td><td>${esc(o.trafego)}</td><td>${esc([o.tracker,o.heatmap].filter(Boolean).join(', '))}</td><td>${o.biblioteca_anuncios?`<a href="${esc(o.biblioteca_anuncios)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'ver anúncios')}</a>`:(o.whatsapp?`<a href="${esc(o.whatsapp)}" target="_blank" rel="noopener noreferrer">${esc(o.anunciante||'whatsapp')}</a>`:esc(o.anunciante||''))}</td><td>${ads(o)}</td><td>${esc(o.checkouts)}</td><td>${esc(o.players)}</td>
 <td class="n">${o.dominios_ativos}/${o.dominios}</td><td class="n">${o.anuncios||''}</td><td class="n">${o.anuncios_video||''}</td><td class="n">${o.max_dias_anuncio||''}</td><td class="n">${o.varreduras_30d||''}</td><td class="n">${o.melhor_tranco}</td><td class="n">${esc(o.visto_desde)}</td></tr>`).join('')}
 document.getElementById('bd').onchange=e=>{if(e.target.classList.contains('selbox')){e.target.checked?sel.add(e.target.dataset.d):sel.delete(e.target.dataset.d);copyOffset=0;updateCopy()}};
 document.getElementById('copydoms').onclick=async()=>{
