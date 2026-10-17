@@ -2,6 +2,16 @@
 
 Mudanças do radar, da mais recente para a mais antiga. Cada entrada diz o que mudou, por quê (o que os dados mostraram) e como foi verificado.
 
+## 2026-10-17 — Escala no topo: nota de Escala por oferta e limpeza de ruído e agrupamento (PR #5)
+
+**Por quê (banco da rodada #21, auditado em 5 ângulos com simulação no pipeline real):** o topo era só "cara de funil" (Força), e a Tração olhava um domínio só. Das 300 primeiras, 39 eram ruído: SaaS e marcas que entravam só porque o urlscan viu o tracker Hyros (porkbun.com, um CRM, uma loja de roupas), portais de curso da ThriveCart agrupados por uma pasta de CDN, ambientes de revisão da Digistore24 (ds25.io, 120 "ofertas"), páginas "Coming Soon". Produtos diferentes do mesmo fornecedor eram fundidos pelo GTM dele.
+
+- **Escala (0–100) por oferta**, somando todos os domínios: varreduras no urlscan, domínios ativos distintos (afiliados/landers), operação, rotação de pixel, longevidade, anúncios (se consultados), redes, Tranco. Só sinais medidos entram na conta. **Score = 40% Força + 60% Escala**, com a Escala pesando inteira a partir de Força 50 (sem funil, volume é popularidade). Porte vem da Escala. HTML e Telegram mostram Força e Escala.
+- **Ruído:** testemunha só de tracker genérico (Hyros, ClickMagick, RedTrack) não faz oferta (Utmify sim); áreas de membros/login fora; hosts das plataformas (ds25.io, checkout-ds24, jvzoo, ClickMagick, Kartra…) fora; top 50 mil do Tranco (também pelo domínio raiz) fora; lojas de catálogo por marcadores e pelo nº de links para a plataforma de checkout; mais títulos e endereços de página morta.
+- **Agrupamento:** IDs de exemplo/provedor não ligam domínios; conta e vídeo da VTurb viram vínculo; pastas de CDN, tokens assinados e "SEU-LINK-AQUI" não viram produto; URL temporária da HostGator não vira irmã de certificado; redirect para site comum/governo não liga; produto herdado só de vizinho direto.
+
+**Verificado no banco de produção:** 1.572 falsas ofertas a menos; topo 40 com Linfozen, ElectroSlim, VitalFlush, Breathe, ProDentim, Arctic Blast, Sciaticyl, SlimTide (cloaking, de 1.526º para 21º). 47 testes.
+
 ## 2026-10-17 — Anúncios de cada oferta: links oficiais por rede e Google por API opcional (PR #4)
 
 **Por quê:** só 463 das 12.236 ofertas tinham link para a Biblioteca da Meta (precisa achar o anunciante na página), e nenhuma tinha caminho para os anúncios no Google/YouTube ou no TikTok, mesmo quando o pixel dessas redes estava na página.
