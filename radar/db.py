@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS domains(
   urlscan_total INTEGER, urlscan_30d INTEGER, urlscan_first TEXT, urlscan_last TEXT,
   ad_count INTEGER, ad_video INTEGER, ad_max_days INTEGER, ad_pages INTEGER,
   tranco_rank INTEGER, cluster_id INTEGER, score REAL, score_parts TEXT, stage TEXT,
-  last_enriched TEXT, classified INTEGER, forca REAL, tracao REAL, trend REAL
+  last_enriched TEXT, classified INTEGER, forca REAL, tracao REAL, trend REAL,
+  domain_created TEXT, store INTEGER
 );
 CREATE TABLE IF NOT EXISTS links(
   domain TEXT, kind TEXT, value TEXT, PRIMARY KEY(domain, kind, value)
@@ -34,7 +35,13 @@ CREATE TABLE IF NOT EXISTS signal_history(
   PRIMARY KEY(domain, kind, value)
 );
 CREATE INDEX IF NOT EXISTS hist_kind ON signal_history(kind);
+CREATE TABLE IF NOT EXISTS discovery(
+  query TEXT PRIMARY KEY, newest TEXT, oldest TEXT
+);
 """
+
+# Página com tantos produtos no checkout é loja virtual, não oferta de resposta direta.
+STORE_MIN_PRODUCTS = 10
 
 _HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$")
 
@@ -65,9 +72,14 @@ def connect(path):
     con.executescript(SCHEMA)
     # Migração: acrescenta colunas novas a bancos criados por versões anteriores.
     have = {r["name"] for r in con.execute("PRAGMA table_info(domains)")}
-    for col, decl in (("forca", "REAL"), ("tracao", "REAL"), ("trend", "REAL")):
+    for col, decl in (("forca", "REAL"), ("tracao", "REAL"), ("trend", "REAL"),
+                      ("domain_created", "TEXT"), ("store", "INTEGER")):
         if col not in have:
             con.execute(f"ALTER TABLE domains ADD COLUMN {col} {decl}")
+    if "store" not in have:  # marca as lojas já analisadas, sem esperar a próxima análise
+        con.execute(f"""UPDATE domains SET store=1 WHERE domain IN (
+                       SELECT domain FROM links WHERE kind='product' GROUP BY domain
+                       HAVING COUNT(*) >= {STORE_MIN_PRODUCTS})""")
     con.commit()
     return con
 

@@ -87,7 +87,17 @@ _SKIP_SEGMENTS = {"", "pt-br", "pt", "en", "es", "login", "static", "assets", "i
                   "images", "js", "css", "favicon.ico", "privacy", "terms", "signup",
                   "secure", "track", "tracking", "affiliates", "affiliate", "checkout", "order",
                   "pay", "cart", "buy", "go", "redir", "api", "v1", "v2", "widget", "embed",
-                  "scripts", "cdn", "cartx-ecomm-ui-asset", "public", "app", "conversion"}
+                  "scripts", "cdn", "cartx-ecomm-ui-asset", "public", "app", "conversion",
+                  # CartPanda: integração com Shopify, cadastro/loja fechada e upsell 1-clique
+                  "shopify", "register", "ex-ocu", "next-offer", "redirect", "libs",
+                  "checkouts", "products"}
+# Subdomínios de plataforma que não são checkout (painel, ajuda).
+_NOT_CHECKOUT_SUB = {"accounts", "help", "blog", "docs", "status"}
+# Arquivos da plataforma (script, estilo, imagem): mostram que a página usa o checkout,
+# mas não dizem qual produto. Sem isso, o mesmo script virava "produto" de 22 sites.
+_ASSET_SUB = {"assets", "static", "cdn"}
+_ASSET_EXT = {"js", "css", "png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "woff", "woff2",
+              "ttf", "json", "map", "mp4"}
 
 
 def valid_product_segment(seg: str) -> bool:
@@ -149,8 +159,15 @@ SEED_SIGNAL = {
     "redtrack.io": ("tracker", "redtrack"), "t.hyros.com": ("tracker", "hyros"),
     "clickmagick.com": ("tracker", "clickmagick"),
     "taboola.com": ("adnet", "taboola"), "outbrain.com": ("adnet", "outbrain"),
-    "mgid.com": ("adnet", "mgid"),
+    "mgid.com": ("adnet", "mgid"), "tfa.js": ("adnet", "taboola"),
+    "amplify.outbrain.com": ("adnet", "outbrain"),
 }
+
+
+def seed_signal(query: str):
+    """O que uma busca de descoberta prova: 'domain:x' ou 'filename:"y"' -> (tipo, nome)."""
+    _, _, value = query.partition(":")
+    return SEED_SIGNAL.get(value.strip().strip('"'))
 
 
 def ad_networks(html: str) -> list:
@@ -244,6 +261,16 @@ VSL_TEXT = re.compile(
     re.I,
 )
 
+# Página que responde 200 mas não está vendendo: loja fechada, domínio à venda,
+# conta suspensa, "404" servido como página normal. Conta como fora do ar.
+DEAD_TITLE = re.compile(
+    r"loja fechada|store (?:is )?closed|account (?:has been )?suspended|conta suspensa|"
+    r"(?:domain|domínio) (?:is |está )?(?:for sale|à venda)|is for sale|parked domain|"
+    r"\b404\b|page not found|página não encontrada",
+    re.I,
+)
+DEAD_HTML = re.compile(r"ref=closed-store", re.I)
+
 # Domínios de infraestrutura: nunca são "a oferta".
 INFRA = {
     "facebook.com", "fbcdn.net", "instagram.com", "fb.com", "whatsapp.com", "wa.me",
@@ -286,6 +313,15 @@ def _checkout_of(url: str):
     for base, plat in CHECKOUT_HOSTS.items():
         if not (host == base or host.endswith("." + base)):
             continue
+        sub = host[:-len(base)].rstrip(".")
+        segs = [s for s in u.path.split("/") if s]
+        if sub.split(".")[-1] in _NOT_CHECKOUT_SUB:
+            return None
+        if sub in ("", "www") and not segs and not u.query:
+            return None  # link para o site da plataforma ("feito com ..."), não checkout
+        if sub.split(".")[-1] in _ASSET_SUB or (
+                segs and "." in segs[-1] and segs[-1].rsplit(".", 1)[1].lower() in _ASSET_EXT):
+            return plat, None
         q = parse_qs(u.query)
 
         def first(*keys):
@@ -305,13 +341,17 @@ def _checkout_of(url: str):
             elif first("vendor"):
                 product = f"clickbank:{first('vendor')}"
         elif plat == "digistore24":  # digistore24.com/product/12345 ou /redir/12345/...
-            nums = [s for s in u.path.split("/") if s.isdigit()]
-            product = f"digistore24:{nums[0]}" if nums else None
+            if len(segs) >= 2 and segs[0] in ("product", "redir") and segs[1].isdigit():
+                product = f"digistore24:{segs[1]}"
+            elif len(segs) >= 2 and segs[0] in ("product", "redir", "info", "trusted-badge"):
+                return plat, None  # selo, contato: não identificam o produto
         if not product:
-            for seg in [s for s in u.path.split("/") if s][:2]:
+            for seg in segs[:2]:
                 if valid_product_segment(seg):
                     product = f"{plat}:{re.sub(r':\d+$', '', seg)}"  # tira sufixo de variante
                     break
+        if not product and plat == "cartpanda" and host.endswith(".mycartpanda.com") and sub:
+            product = f"cartpanda:loja-{sub}"  # a loja do produtor (upsell, carrinho)
         return plat, product
     return None
 
@@ -320,7 +360,7 @@ def valid_product_key(key: str) -> bool:
     """Filtra chaves antigas geradas antes das regras atuais (ex.: 'buygoods:secure')."""
     plat, _, seg = key.partition(":")
     if plat in ("buygoods", "digistore24"):
-        return seg.isdigit()
+        return seg.isdigit() and len(seg) >= 3
     if plat == "clickbank":
         return bool(seg) and seg.lower() not in _SKIP_SEGMENTS and "." not in seg
     return valid_product_segment(seg)
@@ -373,4 +413,5 @@ def extract(html: str) -> dict:
         "lang": lang,
         "text": text[:1500],
         "vsl_text": bool(VSL_TEXT.search(text)),
+        "dead": bool(DEAD_TITLE.search(title) or DEAD_HTML.search(html)),
     }

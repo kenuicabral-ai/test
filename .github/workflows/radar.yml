@@ -13,7 +13,8 @@ permissions:
 
 concurrency:
   group: radar
-  cancel-in-progress: true   # uma rodada nova substitui a anterior (os dados já coletados são salvos)
+  cancel-in-progress: false  # uma rodada nova espera a atual terminar (cancelar jogava fora a
+                             # cota do urlscan já gasta). Fica no máximo uma na fila: a mais nova.
 
 jobs:
   radar:
@@ -63,7 +64,7 @@ jobs:
         run: python radar.py run 2>&1 | tee logs/3-rodada.log
 
       - name: Gerar ranking com o que foi processado
-        if: ${{ !cancelled() && steps.run.outcome != 'success' }}
+        if: ${{ always() && steps.run.outcome != 'success' }}
         run: |
           [ -f radar.db ] && python radar.py ranking 2>&1 | tee logs/4-ranking.log || true
 
@@ -76,9 +77,12 @@ jobs:
         run: python ci/notify.py 2>&1 | tee logs/5-telegram.log
 
       - name: Salvar dados (branch "dados")
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}         # mesmo cancelada, a rodada guarda o que já coletou
         run: |
           [ -f radar.db ] || { echo "sem banco para salvar"; exit 0; }
+          # Abrir o banco desfaz uma escrita interrompida (cancelamento); só salva se estiver íntegro.
+          python -c "import sqlite3; c = sqlite3.connect('radar.db'); assert c.execute('PRAGMA quick_check').fetchone()[0] == 'ok'; assert c.execute('SELECT COUNT(*) FROM domains').fetchone()[0] > 0" \
+            || { echo "banco vazio ou inconsistente: dados não salvos (a branch dados fica como estava)"; exit 0; }
           D=$(mktemp -d)
           gzip -c radar.db > "$D/radar.db.gz"
           cp -r saida "$D/" 2>/dev/null || true

@@ -10,7 +10,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import net
-from .db import add_domain, add_link, norm_domain, now, update
+from .db import STORE_MIN_PRODUCTS, add_domain, add_link, norm_domain, now, update
 from .signatures import STRONG_PLAYERS, extract
 
 AD_UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 "
@@ -97,7 +97,7 @@ def analyze_one(domain, render=False, timeout=20, proxy=None):
 
 def save(con, res):
     d, s = res["domain"], res["sig"]
-    alive = 1 if res["status"] and res["status"] < 400 else 0
+    alive = 1 if res["status"] and res["status"] < 400 and not s.get("dead") else 0
     fd = res["final_domain"]
     if fd and fd != d:
         # Encurtador/tracker/página de entrada: a oferta é o destino. Guarda só o vínculo,
@@ -113,7 +113,7 @@ def save(con, res):
            final_url=res["final_url"], title=s["title"], lang=s["lang"],
            players=s["players"], checkouts=s["checkouts"], checkout_urls=s["checkout_urls"],
            text_sample=s["text"], vsl_text=int(s["vsl_text"]), cloaked=int(res["cloaked"]),
-           ip=res["ip"])
+           ip=res["ip"], store=int(len(s["products"]) >= STORE_MIN_PRODUCTS))
     # A página pode ter mudado desde a última análise: troca os IDs pelos atuais.
     con.execute("""DELETE FROM links WHERE domain=? AND kind IN
                    ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','adnet','social','video')""", (d,))
@@ -214,10 +214,13 @@ def is_offer(row):
     """Entra no ranking: VSL/checkout na nossa leitura, anúncio, ou testemunha do urlscan.
 
     A testemunha do urlscan é o que impede uma grande oferta com cloaking de sumir só
-    porque ela nos mostrou a página isca.
+    porque ela nos mostrou a página isca. Loja virtual (dezenas de produtos no checkout)
+    fica de fora, a não ser que tenha player de VSL.
     """
     from .db import jl
     players = set(jl(row["players"]))
+    if row["store"] and not players & STRONG_PLAYERS:
+        return False
     return bool(jl(row["checkouts"]) or players & STRONG_PLAYERS or
                 (players and row["vsl_text"]) or (row["ad_count"] or 0) > 0 or
                 row["domain"] in SEEN_OFFERS)

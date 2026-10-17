@@ -12,6 +12,7 @@ import datetime as dt
 import io
 import json
 import re
+import time
 import zipfile
 from urllib.parse import quote
 
@@ -29,32 +30,84 @@ def log(*a):
 # em vez de gastar o tempo esperando. O que faltou fica para a próxima rodada.
 BREAKER = {"urlscan": False, "crtsh_fail": 0, "crtsh_kw_fail": 0}
 
+# Cota do urlscan: ele conta cada BUSCA (não cada resultado). A rodada lê quantas
+# buscas restam e reparte entre descoberta, varreduras e expansão, em vez de gastar
+# tudo na primeira etapa. "cap" é o teto da etapa em andamento (None = sem teto).
+QUOTA = {"checked": False, "left": None, "used": 0, "cap": None}
+
 
 def urlscan_available():
-    return not BREAKER["urlscan"]
+    if BREAKER["urlscan"]:
+        return False
+    if QUOTA["left"] is not None and QUOTA["used"] >= QUOTA["left"]:
+        return False
+    return QUOTA["cap"] is None or QUOTA["used"] < QUOTA["cap"]
+
+
+def urlscan_left():
+    """Buscas que ainda cabem nesta rodada (None = não deu para ler a cota)."""
+    if BREAKER["urlscan"]:
+        return 0
+    return None if QUOTA["left"] is None else max(0, QUOTA["left"] - QUOTA["used"])
 
 
 # ------------------------------------------------------------------ urlscan
-def urlscan_search(query, cfg, max_results=1000):
-    """Pagina a busca do urlscan. Retorna (resultados, total_estimado)."""
+def _urlscan_headers(cfg):
     headers = {"User-Agent": UA}
     if cfg.get("urlscan_api_key"):
         headers["API-Key"] = cfg["urlscan_api_key"]
-    out, total, after, retries = [], 0, None, 0
-    if BREAKER["urlscan"]:
-        return out, total
+    return headers
+
+
+def urlscan_quota(cfg):
+    """Lê no próprio urlscan quantas buscas restam (o menor entre o dia e a hora)."""
+    QUOTA["checked"] = True
+    try:
+        r = net.get("https://urlscan.io/user/quotas/", headers=_urlscan_headers(cfg), timeout=20)
+        s = r.json()["limits"]["search"]
+        day, hour = s["day"], s["hour"]
+        QUOTA["left"] = max(0, min(day["remaining"], hour["remaining"]))
+    except Exception as e:
+        log(f"  urlscan: não consegui ler a cota ({type(e).__name__}); sigo sem orçamento")
+        return None
+    log(f"  urlscan: {QUOTA['left']} buscas disponíveis agora "
+        f"(dia {day['remaining']}/{day['limit']}, hora {hour['remaining']}/{hour['limit']})")
+    return QUOTA["left"]
+
+
+def _page_size(cfg):
+    # Com chave, uma busca devolve até milhares de resultados; sem chave, 100.
+    return cfg.get("urlscan_page_size") or (1000 if cfg.get("urlscan_api_key") else 100)
+
+
+def _utc(t):
+    return t.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def urlscan_search(query, cfg, max_results=1000, since=None, until=None):
+    """Busca no urlscan, da varredura mais recente para a mais antiga.
+
+    Pagina pelo horário (date:[since TO cursor}), o que funciona com e sem chave.
+    Retorna (resultados, total, completo): completo=False quando parou antes de ler
+    tudo (limite de resultados, cota ou erro).
+    """
+    if not QUOTA["checked"]:
+        urlscan_quota(cfg)
+    out, total, cursor, retries = [], None, until, 0
     while len(out) < max_results:
-        params = {"q": query, "size": min(100, max_results - len(out))}
-        if after:
-            params["search_after"] = after
+        if not urlscan_available():
+            return out, total or 0, False
+        q = query
+        if since or cursor:
+            q += f" AND date:[{since or '*'} TO {cursor + '}' if cursor else 'now]'}"
+        size = min(_page_size(cfg), max_results - len(out))
         try:
-            r = net.get("https://urlscan.io/api/v1/search/", headers=headers, params=params,
-                        min_interval=cfg.get("urlscan_interval", 2.0))
+            r = net.get("https://urlscan.io/api/v1/search/", headers=_urlscan_headers(cfg),
+                        params={"q": q, "size": size}, min_interval=cfg.get("urlscan_interval", 2.0))
         except Exception as e:
             log(f"  urlscan falhou: {e}")
-            break
+            return out, total or 0, False
         if r.status_code == 429:
-            import time
             try:
                 wait = float(r.headers.get("X-Rate-Limit-Reset-After") or 61)
             except (TypeError, ValueError, AttributeError):
@@ -66,88 +119,211 @@ def urlscan_search(query, cfg, max_results=1000):
                 continue
             BREAKER["urlscan"] = True
             log("  urlscan: cota esgotada; consultas ao urlscan pausadas até a próxima rodada.")
-            break
+            return out, total or 0, False
+        if r.status_code == 400 and size > 100:
+            cfg["urlscan_page_size"] = 100  # o plano não aceita páginas maiores
+            log("  urlscan: páginas limitadas a 100 resultados neste plano")
+            continue
         if r.status_code != 200:
             log(f"  urlscan {r.status_code}: {r.text[:150]}")
-            break
+            return out, total or 0, False
+        QUOTA["used"] += 1
         try:
             data = r.json()
         except ValueError:
-            break
-        res = data.get("results", [])
-        total = data.get("total", total)
+            return out, total or 0, False
+        res = data.get("results") or []
+        if total is None:
+            total = data.get("total", len(res))
         out.extend(res)
-        if not res or not data.get("has_more"):
+        # "total" é o que resta na faixa pedida: se coube nesta página, acabou.
+        if not res or data.get("total", 0) <= len(res):
+            return out, total, True
+        t = (res[-1].get("task") or {}).get("time")
+        if not t or t == cursor:
             break
-        after = ",".join(str(x) for x in res[-1].get("sort", []))
-        if not after:
-            break
-    return out, total
+        cursor = t
+    return out, total or 0, False
+
+
+def _note_age(con, domain, result):
+    """Data de criação do domínio, que o urlscan informa (WHOIS) em cada varredura."""
+    page = result.get("page") or {}
+    days = page.get("apexDomainAgeDays", page.get("domainAgeDays"))
+    seen = ((result.get("task") or {}).get("time") or "")[:10]
+    if not isinstance(days, int) or days < 0 or not seen:
+        return
+    try:
+        created = (dt.date.fromisoformat(seen) - dt.timedelta(days=days)).isoformat()
+    except ValueError:
+        return
+    # Fica a mais recente: domínio que expirou e foi registrado de novo é novo.
+    con.execute("UPDATE domains SET domain_created=? WHERE domain=? AND "
+                "(domain_created IS NULL OR domain_created < ?)", (created, domain, created))
 
 
 def discover_urlscan(con, cfg):
     """Enumera páginas que carregam assinaturas de VSL/checkout/rastreamento.
 
-    Cada busca é dividida em janelas de tempo. Sem chave, o urlscan devolve só as 100
-    páginas mais recentes por busca; com janelas, cada uma devolve outras 100. A ordem
-    é janela por janela (todas as assinaturas nos dias recentes primeiro), para que,
-    se a cota acabar, a cobertura dos dias mais recentes esteja completa.
+    Incremental: cada busca guarda até onde já foi lida (tabela discovery). Por dia,
+    lê só o que apareceu desde a rodada anterior (uma ou duas buscas por assinatura);
+    o histórico de urlscan_backfill_days dias é preenchido aos poucos, do mais recente
+    para o mais antigo, com até urlscan_discovery_share da cota disponível.
     """
+    from .signatures import seed_signal
     new = 0
-    windows = cfg.get("urlscan_windows") or [[0, 180]]
     per = cfg.get("urlscan_max_per_query", 1000)
-    from .signatures import SEED_SIGNAL
-    for a, b in windows:
-        for q in cfg["urlscan_queries"]:
-            if not urlscan_available():
-                log("  urlscan sem cota; o resto da descoberta fica para a próxima rodada")
-                return new
-            # O que esta busca prova sobre a página (o urlscan viu o recurso carregar).
-            seed_dom = q.split(":", 1)[1].strip() if q.startswith("domain:") else ""
-            seen = SEED_SIGNAL.get(seed_dom)
-            query = f"{q} AND date:>now-{b}d" + (f" AND date:<now-{a}d" if a else "")
-            res, total = urlscan_search(query, cfg, per)
-            n0 = new
-            for r in res:
-                page = r.get("page", {})
-                d = norm_domain(page.get("domain") or page.get("url"))
-                if not d:
+    now_dt = dt.datetime.now(dt.timezone.utc)
+    now_ts = _utc(now_dt)
+    horizon = _utc(now_dt - dt.timedelta(days=cfg.get("urlscan_backfill_days", 180)))
+    first = _utc(now_dt - dt.timedelta(days=cfg.get("urlscan_first_days", 3)))
+
+    def state(q):
+        return con.execute("SELECT newest, oldest FROM discovery WHERE query=?", (q,)).fetchone()
+
+    def save(q, newest, oldest):
+        con.execute("INSERT OR REPLACE INTO discovery(query, newest, oldest) VALUES(?,?,?)",
+                    (q, newest, oldest))
+        con.commit()
+
+    def harvest(q, since, until, label):
+        nonlocal new
+        res, total, complete = urlscan_search(q, cfg, per, since=since, until=until)
+        seen, n = seed_signal(q), 0
+        for r in res:
+            page = r.get("page") or {}
+            d = norm_domain(page.get("domain") or page.get("url"))
+            if not d:
+                continue
+            if add_domain(con, d, "urlscan"):
+                n += 1
+            if page.get("ip"):
+                add_link(con, d, "ip", page["ip"])
+            if seen:  # testemunha do urlscan: "esta página carregou X"
+                add_link(con, d, "seen", f"{seen[0]}:{seen[1]}")
+            _note_age(con, d, r)
+        con.commit()
+        new += n
+        if res or complete:
+            log(f"  urlscan [{q} | {label}]: {len(res)} varreduras (total ~{total}), {n} domínios novos")
+        oldest = (res[-1].get("task") or {}).get("time") if res else None
+        return len(res), complete, oldest
+
+    # 1) Novidades desde a última rodada: sempre roda, é barato.
+    for q in cfg["urlscan_queries"]:
+        if not urlscan_available():
+            log("  urlscan sem cota; o resto da descoberta fica para a próxima rodada")
+            return new
+        st = state(q)
+        if st and st["newest"]:
+            since = _utc(dt.datetime.fromisoformat(st["newest"].replace("Z", "+00:00"))
+                         - dt.timedelta(hours=1))
+            got, complete, oldest = harvest(q, since, None, "novas")
+            if complete or got >= per:
+                if not complete:
+                    log(f"  (mais de {per} varreduras desde a última rodada; as mais antigas ficaram de fora)")
+                save(q, now_ts, st["oldest"])
+        else:
+            got, complete, oldest = harvest(q, first, None, "primeira leitura")
+            if got or complete:
+                save(q, now_ts, first if complete else oldest)
+
+    # 2) Histórico, do ponto mais antigo já lido para trás, com a cota que sobrar.
+    left = urlscan_left()
+    QUOTA["cap"] = (QUOTA["used"] + int(left * cfg.get("urlscan_discovery_share", 0.5))
+                    if left is not None else None)
+    try:
+        progress = True
+        while progress and urlscan_available():
+            progress = False
+            for q in cfg["urlscan_queries"]:
+                st = state(q)
+                if not (st and st["oldest"] and st["oldest"] > horizon) or not urlscan_available():
                     continue
-                if add_domain(con, d, "urlscan"):
-                    new += 1
-                if page.get("ip"):
-                    add_link(con, d, "ip", page["ip"])
-                if seen:  # testemunha do urlscan: "esta página carregou X"
-                    add_link(con, d, "seen", f"{seen[0]}:{seen[1]}")
-            con.commit()
-            log(f"  urlscan [{q} | {a}-{b} dias]: {len(res)} resultados (total ~{total}), "
-                f"{new - n0} domínios novos")
+                got, complete, oldest = harvest(q, horizon, st["oldest"], "histórico")
+                if complete or oldest:
+                    save(q, st["newest"], horizon if complete else oldest)
+                    progress = True
+    finally:
+        QUOTA["cap"] = None
+    behind = [r["oldest"][:10] for r in con.execute("SELECT oldest FROM discovery")
+              if r["oldest"] and r["oldest"] > horizon]
+    if behind:
+        log(f"  histórico: {len(behind)} buscas ainda não chegaram a {horizon[:10]} "
+            f"(a mais atrasada está em {min(behind)}); continua nas próximas rodadas")
     return new
 
 
-def urlscan_stats(con, domain, cfg):
-    """Quantas varreduras o domínio teve (proxy de visitas reais) e quando."""
-    if not urlscan_available():
-        return
-    res, total = urlscan_search(f'page.domain:"{domain}"', cfg, 100)
-    if not urlscan_available():
-        return  # cota acabou: não grava zero, tenta na próxima rodada
-    if not res:
-        update(con, domain, urlscan_total=0, urlscan_30d=0)
-        return
-    times = sorted(r.get("task", {}).get("time", "")[:10] for r in res if r.get("task"))
+def _owner(host, domains):
+    """O domínio do lote a que a varredura pertence (o mais específico)."""
+    best = None
+    for d in domains:
+        if (host == d or host.endswith("." + d)) and (best is None or len(d) > len(best)):
+            best = d
+    return best
+
+
+def urlscan_stats(con, domains, cfg):
+    """Varreduras de vários domínios numa busca só: page.domain:("a" OR "b" ...).
+
+    Quantas vezes a página foi varrida (proxy de visitas reais) e quando. Se a página
+    de resultados não trouxe tudo, divide o lote ao meio e repete: os números de cada
+    domínio saem exatos e o custo fica perto de uma busca por lote. Retorna os domínios
+    atualizados; os outros ficam para a próxima rodada.
+    """
+    domains = list(domains)
+    if not domains or not urlscan_available():
+        return set()
+    q = "page.domain:(" + " OR ".join(f'"{d}"' for d in domains) + ")"
+    res, total, complete = urlscan_search(q, cfg, _page_size(cfg))
+    if not complete:
+        if not urlscan_available() or not res:
+            return set()  # cota acabou ou erro: tenta na próxima rodada
+        if len(domains) > 1:
+            h = len(domains) // 2
+            return urlscan_stats(con, domains[:h], cfg) | urlscan_stats(con, domains[h:], cfg)
+    per = {d: [] for d in domains}
+    for r in res:
+        owner = _owner(norm_domain((r.get("page") or {}).get("domain")) or "", domains)
+        if owner:
+            per[owner].append(r)
     cutoff = (dt.date.today() - dt.timedelta(days=30)).isoformat()
-    update(con, domain,
-           urlscan_total=max(total, len(res)),
-           urlscan_30d=sum(1 for t in times if t >= cutoff),
-           urlscan_first=times[0] if times else None,
-           urlscan_last=times[-1] if times else None)
+    for d, rs in per.items():
+        times = sorted(t for t in (((x.get("task") or {}).get("time") or "")[:10] for x in rs) if t)
+        update(con, d,
+               urlscan_total=len(rs) if complete else max(total, len(rs)),
+               urlscan_30d=sum(1 for t in times if t >= cutoff),
+               urlscan_first=times[0] if times else None,
+               urlscan_last=times[-1] if times else None)
+        if rs:
+            _note_age(con, d, rs[0])
+    return set(domains)
 
 
-def urlscan_domains_for(query, cfg, max_results=300):
-    res, total = urlscan_search(query, cfg, max_results)
-    doms = {norm_domain((r.get("page") or {}).get("domain")) for r in res}
-    return {d for d in doms if d}, total
+def urlscan_ip_domains(ips, cfg):
+    """Domínios hospedados em cada IP, vários IPs por busca (mesma divisão do lote).
+
+    Retorna {ip: domínios} só dos IPs respondidos; os outros ficam para depois.
+    """
+    ips = list(ips)
+    if not ips or not urlscan_available():
+        return {}
+    q = "page.ip:(" + " OR ".join(f'"{ip}"' for ip in ips) + ")"
+    res, total, complete = urlscan_search(q, cfg, _page_size(cfg))
+    if not complete and len(ips) > 1:
+        if not urlscan_available() or not res:
+            return {}
+        h = len(ips) // 2
+        return {**urlscan_ip_domains(ips[:h], cfg), **urlscan_ip_domains(ips[h:], cfg)}
+    if not complete and not res:
+        return {}
+    out = {ip: set() for ip in ips}
+    for r in res:
+        page = r.get("page") or {}
+        d = norm_domain(page.get("domain"))
+        if d and page.get("ip") in out:
+            out[page["ip"]].add(d)
+    return out
 
 
 # ------------------------------------------------------------------ crt.sh
@@ -233,7 +409,6 @@ def certstream_listen(con, cfg, limit=None):
                 if limit and seen["n"] >= limit:
                     ws.close()
 
-    import time
     log(f"Conectando a {cfg['certstream_url']} (Ctrl+C para parar)...")
     failures = 0
     while True:
@@ -526,7 +701,6 @@ def import_urls(con, path, source="adspy"):
 def tranco_ranks(domains, cache_path):
     """Posição no ranking Tranco (top 1M sites por tráfego). Baixa uma vez por dia."""
     import os
-    import time
     if not os.path.exists(cache_path) or time.time() - os.path.getmtime(cache_path) > 86400:
         log("  baixando lista Tranco (~10 MB)...")
         r = net.get("https://tranco-list.eu/top-1m.csv.zip", timeout=180)

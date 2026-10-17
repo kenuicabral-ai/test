@@ -9,7 +9,7 @@ import time
 
 from .analyze import is_offer, refresh_seen
 from .db import add_domain, today
-from .sources import log, publicwww_domains, urlscan_available, urlscan_domains_for
+from .sources import log, publicwww_domains, urlscan_available, urlscan_ip_domains
 
 CODE_KINDS = ("gtm", "ga4", "ua", "fbpixel", "ttpixel", "utmify", "product")
 
@@ -49,37 +49,15 @@ def run(con, cfg):
             WHERE e.value IS NULL AND l.domain IN ({marks})""", tuple(offers)).fetchall()
     new = ip_done = 0
     has_pw = bool(cfg.get("publicwww_api_key"))
-    ip_cap = cfg.get("ip_expand_max", 25)
+    ip_cap = cfg.get("ip_expand_max", 400)
     ip_limit = cfg.get("ip_max_domains_urlscan", 15)
 
     def mark(kind, value, n):
         con.execute("INSERT OR REPLACE INTO expanded(kind, value, day, found) VALUES(?,?,?,?)",
                     (kind, value, today(), n))
 
-    for row in links:
-        if cfg.get("_deadline") and time.time() > cfg["_deadline"]:
-            log("  tempo da rodada esgotado; o resto da expansão fica para amanhã")
-            break
-        kind, value = row["kind"], row["value"]
-        found = set()
-        if kind in CODE_KINDS:
-            if not has_pw:
-                continue  # sem PublicWWW: fica pendente até haver chave
-            snippet = value.split(":", 1)[1] if kind == "product" else value
-            found = publicwww_domains(snippet, cfg)
-        elif kind == "ip":
-            if is_cdn(value):
-                mark(kind, value, 0)
-                continue
-            if ip_done >= ip_cap or not urlscan_available():
-                continue  # fica para a próxima rodada
-            doms, total = urlscan_domains_for(f'page.ip:"{value}"', cfg, 100)
-            if not urlscan_available():
-                continue  # a cota acabou nesta consulta: não marca, tenta amanhã
-            ip_done += 1
-            found = doms if total <= ip_limit else set()  # muitos sites = hospedagem compartilhada
-        else:
-            continue
+    def add(kind, value, found):
+        nonlocal new
         n0 = new
         for d in found:
             if add_domain(con, d, f"grafo:{kind}"):
@@ -88,6 +66,34 @@ def run(con, cfg):
         con.commit()
         if new > n0:
             log(f"  {kind} {value}: +{new - n0} domínios")
+
+    def late():
+        return cfg.get("_deadline") and time.time() > cfg["_deadline"]
+
+    ips = []
+    for row in links:
+        if late():
+            log("  tempo da rodada esgotado; o resto da expansão fica para amanhã")
+            break
+        kind, value = row["kind"], row["value"]
+        if kind == "ip":
+            if is_cdn(value):
+                mark(kind, value, 0)
+            else:
+                ips.append(value)
+        elif kind in CODE_KINDS and has_pw:  # sem PublicWWW: fica pendente até haver chave
+            snippet = value.split(":", 1)[1] if kind == "product" else value
+            add(kind, value, publicwww_domains(snippet, cfg))
+    # IPs em lotes: uma busca do urlscan cobre dezenas de IPs. Os não respondidos
+    # (cota ou tempo) não são marcados e voltam na próxima rodada.
+    batch = cfg.get("urlscan_batch", 40)
+    ips = ips[:ip_cap]
+    for i in range(0, len(ips), batch):
+        if late() or not urlscan_available():
+            break
+        for ip, doms in urlscan_ip_domains(ips[i:i + batch], cfg).items():
+            ip_done += 1
+            add("ip", ip, doms if len(doms) <= ip_limit else set())  # muitos sites = hospedagem compartilhada
     con.commit()
     if not has_pw:
         log("  (sem chave do PublicWWW: expansão por GTM/pixel/produto desativada)")

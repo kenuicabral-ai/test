@@ -19,8 +19,8 @@ cfg.update({
     "apify_auto_advertisers": int(os.environ.get("APIFY_AUTO") or 0),
     "workers": 24,
     "max_minutes": int(os.environ.get("RADAR_MAX_MINUTES") or 50),
-    # Sem chave do urlscan, cada busca traz no máximo 100 resultados.
-    "urlscan_max_per_query": 500 if os.environ.get("URLSCAN_API_KEY") else 100,
+    # Máx. de varreduras por busca em cada leitura (sem chave, cada página traz 100).
+    "urlscan_max_per_query": 1000 if os.environ.get("URLSCAN_API_KEY") else 300,
     # Ofertas nascendo: certificados dos últimos 7 dias com estas palavras no nome.
     "crtsh_keywords": ["metodo", "protocolo", "segredo", "emagrec", "renda-extra"],
 })

@@ -34,9 +34,12 @@ Secrets do repositório (**Settings → Secrets and variables → Actions**):
 - **Rodar na hora:** aba **Actions → Radar de Ofertas → Run workflow**.
 - **Ver os dados no GitHub:** branch `dados`, arquivo `saida/ranking_ofertas.csv` (o GitHub mostra como tabela).
 - **Tempo por rodada:** cerca de 55 minutos (50 de radar + preparação). Em repositório público os minutos do GitHub Actions são ilimitados; em privado, cabem nos 2.000 minutos mensais gratuitos. Para mudar, crie a variável `RADAR_MAX_MINUTES` em **Settings → Secrets and variables → Actions → Variables**.
+- **Cota do urlscan:** o urlscan conta cada *busca*, não cada resultado. No início da rodada o radar lê quantas buscas restam (no próprio urlscan) e reparte: a descoberta lê só o que é novo desde a rodada anterior (uma busca por assinatura), o histórico de 180 dias é preenchido aos poucos com no máximo metade da cota, e as varreduras e a expansão por IP são feitas em lote (dezenas de domínios ou IPs por busca). Rodar várias vezes no mesmo dia não queima a cota: a segunda rodada só lê as últimas horas.
 - **Freios automáticos:** se o urlscan esgotar a cota ou o crt.sh cair, o radar para de consultá-los naquela rodada e continua com o resto. O que faltou é retomado no dia seguinte.
+- **Rodadas em fila:** um push com a rodada em andamento não a cancela mais; a nova espera a atual terminar (cancelar jogava fora a cota já gasta). E mesmo uma rodada cancelada na mão salva o que coletou.
 - **Certstream:** o servidor público não enviou certificados nos testes, então ele não roda no GitHub. As ofertas novas entram pelo urlscan (que também pega páginas recém-criadas) e pela busca no crt.sh. O comando `certstream` continua disponível para rodar num computador.
-- **Domínios que não couberam no dia** ficam na fila e são processados nas próximas rodadas. O banco é salvo na branch `dados` ao fim de cada rodada.
+- **Domínios que não couberam no dia** ficam na fila e são processados nas próximas rodadas. O banco é salvo na branch `dados` ao fim de cada rodada (só se estiver íntegro).
+- **Testes:** cada push roda também o workflow **Testes** (alguns segundos, sem rede, sem gastar cota).
 - **Limite:** os servidores do GitHub usam IP de datacenter, e cloaking que bloqueia esses IPs esconde a página do radar. Os sinais de infraestrutura (urlscan, certificados, Tranco) continuam funcionando.
 
 ## Instalar no computador (opcional)
@@ -50,7 +53,7 @@ Abra o `config.json` e preencha as chaves que tiver. Todas são opcionais, mas c
 
 | Chave | Custo | O que libera |
 |---|---|---|
-| `urlscan_api_key` | grátis (cadastro em urlscan.io) | Até 10 mil resultados por busca em vez de 100. **Faça isso primeiro.** |
+| `urlscan_api_key` | grátis (cadastro em urlscan.io) | Mais buscas por dia e páginas de até 1000 resultados em vez de 100. **Faça isso primeiro.** |
 | `publicwww_api_key` | pago | Expansão em grafo por GTM, Pixel e produto: acha os outros domínios da mesma operação |
 | `anthropic_api_key` | por uso | Classifica cada oferta por tipo, nicho e promessa |
 
@@ -64,7 +67,7 @@ Abra `saida/ranking.html`. Também saem `ranking_ofertas.csv` e `ranking_dominio
 
 O que a rodada faz:
 
-1. **Descobre** no urlscan todas as páginas que carregaram VTurb, Panda, Vidalytics ou Utmify nos últimos 180 dias. Isso pega ofertas antigas e novas, porque depende de a página existir e ser visitada, não de palavras-chave.
+1. **Descobre** no urlscan as páginas que carregaram VTurb, Panda, Vidalytics, Utmify, os checkouts e os trackers. Cada busca lembra até onde já foi lida: por dia, só o que apareceu desde a rodada anterior; o histórico de 180 dias entra aos poucos. Isso pega ofertas antigas e novas, porque depende de a página existir e ser visitada, não de palavras-chave. Cada resultado já traz a data de registro do domínio, que vira a idade da oferta.
 2. **Analisa** cada domínio: player, checkout, produto, GTM, GA4, Pixel, cloaking e se está no ar.
 3. **Expande** pelo grafo: o mesmo IP (só servidores pequenos), o mesmo certificado, o mesmo GTM, Pixel ou produto (com PublicWWW). Cada oferta achada leva às irmãs.
 4. **Enriquece**: idade pelo primeiro certificado, renovações (oferta que dura renova o certificado), volume de varreduras nos últimos 30 dias e posição no Tranco.
@@ -134,13 +137,13 @@ Cada oferta tem **duas notas separadas**, para não enterrar ofertas novas e for
 
 Outras colunas:
 
-- **Estágio:** `crescendo` = ganhou anúncios ou visitas na semana (precisa de 7 dias de histórico); senão `nova` (até 30 dias de vida) ou `estabelecida` (mais). Nos primeiros 7 dias quase tudo é nova/estabelecida; "crescendo" começa a aparecer depois.
+- **Estágio:** `crescendo` = ganhou anúncios ou visitas na semana (precisa de 7 dias de histórico); senão `nova` (até 30 dias de vida) ou `estabelecida` (mais). A idade é a data de registro do domínio (o urlscan informa); sem ela, o primeiro certificado ou a primeira varredura. Nos primeiros 7 dias quase tudo é nova/estabelecida; "crescendo" começa a aparecer depois.
 - **Tráfego:** a rede de anúncio detectada pelo pixel na página (meta, google, tiktok, taboola, outbrain, mgid…). É onde procurar os criativos. Vazio = nenhum pixel conhecido achado (comum em página com cloaking ou que injeta o pixel por JavaScript; use `--render`).
 - **Domínios ativos/total:** muitos domínios na mesma oferta = operação grande, que troca de domínio para escalar.
 - **Varred. 30d:** quantas vezes a página foi varrida no urlscan no último mês. Sinal indireto de circulação.
 - **Tranco:** quanto menor, mais tráfego. Uma oferta no top 1M é grande.
 
-Página fora do ar perde 75% do score. Veja de onde veio cada ponto em `ranking_dominios.csv` → `score_parts`.
+Página fora do ar perde 75% do score. Conta como fora do ar também a página que responde mas não vende: "Loja Fechada", domínio à venda, conta suspensa, 404 disfarçado. Lojas virtuais (10 ou mais produtos no checkout) não entram no ranking, a não ser que tenham player de VSL. Veja de onde veio cada ponto em `ranking_dominios.csv` → `score_parts`.
 
 ## Onde achar os anúncios de uma oferta
 
@@ -159,9 +162,10 @@ Quando a coluna Anunciante estiver vazia, caia para a coluna **Tráfego**:
 ## Ajustes
 
 - **Novo player ou checkout:** adicione em `radar/signatures.py` e acrescente `domain:novoplayer.com` em `urlscan_queries`.
-- **Mais páginas por rodada:** `urlscan_max_per_query` (com a chave gratuita, até 10000).
+- **Mais páginas por rodada:** `urlscan_max_per_query` (máximo de varreduras lidas por busca em cada rodada). `urlscan_discovery_share` define quanto da cota o histórico pode usar (padrão 0.5).
 - **Análise mais profunda:** `python radar.py run --render` usa o Chromium (instale o `playwright`), o que pega scripts carregados por JavaScript. É mais lento.
 - **Comandos separados:** `descobrir`, `analisar`, `expandir`, `enriquecer`, `ranking` (sem rede), `classificar`.
+- **Testes:** `pip install pytest` e `python -m pytest -q tests` (sem rede; o urlscan é simulado).
 
 ## O que continua fora
 
