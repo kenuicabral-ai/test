@@ -94,3 +94,15 @@ def test_native_pixel_queries_have_no_backfill(con, fake):
     doms = {r["domain"] for r in con.execute("SELECT domain FROM domains")}
     assert doms == {"vsl.com"}  # o histórico do player entra; o do pixel de nativo não
     assert not any("tfa.js" in q and "TO 20" in q and "now]" not in q for q in f.calls)
+
+
+def test_dead_titles_already_in_db_are_fixed_at_ranking(con):
+    """Regra nova vale já no próximo ranking, sem esperar reanalisar 30 mil domínios."""
+    add_domain(con, "viralpackage.shop", "urlscan")
+    update(con, "viralpackage.shop", alive=1, title="Your domain is expired")
+    add_link(con, "viralpackage.shop", "ua", "UA-26575989-44")
+    add_link(con, "viralpackage.shop", "ip", "1.2.3.4")
+    radar_cli.cleanup_links(con)
+    assert con.execute("SELECT alive FROM domains").fetchone()[0] == 0
+    kinds = {r[0] for r in con.execute("SELECT kind FROM links")}
+    assert kinds == {"ip"}

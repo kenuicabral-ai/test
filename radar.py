@@ -191,15 +191,28 @@ def tranco(con, cfg):
 
 
 def cleanup_links(con):
-    """Remove chaves de produto geradas por regras antigas (ex.: 'buygoods:secure')."""
-    from radar.signatures import valid_product_key
+    """Aplica regras novas ao que já está no banco, sem esperar a próxima análise.
+
+    - Chaves de produto geradas por regras antigas (ex.: 'buygoods:secure').
+    - Páginas mortas pelo título (estacionada, expirada...): fora do ar e sem os IDs
+      de rastreamento do provedor, que ligariam domínios sem relação.
+    """
+    from radar.signatures import DEAD_TITLE, valid_product_key
     bad = [r["value"] for r in con.execute("SELECT DISTINCT value FROM links WHERE kind='product'")
            if not valid_product_key(r["value"])]
     for v in bad:
         con.execute("DELETE FROM links WHERE kind='product' AND value=?", (v,))
     if bad:
-        con.commit()
         print(f"  {len(bad)} chaves de produto genéricas removidas")
+    dead = [r["domain"] for r in con.execute("SELECT domain, title FROM domains WHERE alive=1 AND title != ''")
+            if DEAD_TITLE.search(r["title"])]
+    for d in dead:
+        con.execute("UPDATE domains SET alive=0 WHERE domain=?", (d,))
+        con.execute("""DELETE FROM links WHERE domain=? AND kind IN
+                       ('product','gtm','ga4','ua','fbpixel','ttpixel','utmify','video')""", (d,))
+    if dead:
+        print(f"  {len(dead)} páginas mortas pelo título (estacionada, expirada, loja fechada...)")
+    con.commit()
 
 
 def finish(con, cfg, do_classify=True):
