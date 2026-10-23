@@ -1,0 +1,457 @@
+
+== Descoberta: urlscan (páginas que carregam player/rastreamento de VSL) (14:41:03)
+  urlscan: 1000 buscas disponíveis agora (dia 1000/1000, hora 1000/1000)
+  urlscan [domain:converteai.net | novas]: 51 varreduras (total ~51), 36 domínios novos
+  urlscan [domain:vturb.com.br | novas]: 0 varreduras (total ~0), 0 domínios novos
+  urlscan [domain:pandavideo.com.br | novas]: 7 varreduras (total ~7), 7 domínios novos
+  urlscan [domain:vidalytics.com | novas]: 15 varreduras (total ~15), 7 domínios novos
+  urlscan [domain:utmify.com.br | novas]: 278 varreduras (total ~278), 88 domínios novos
+  urlscan [domain:pay.hotmart.com | novas]: 1 varreduras (total ~1), 0 domínios novos
+  urlscan [domain:pay.kiwify.com.br | novas]: 4 varreduras (total ~4), 0 domínios novos
+  urlscan [domain:mycartpanda.com | novas]: 8 varreduras (total ~8), 2 domínios novos
+  urlscan [domain:buygoods.com | novas]: 11 varreduras (total ~11), 1 domínios novos
+  urlscan [domain:pay.clickbank.net | novas]: 0 varreduras (total ~0), 0 domínios novos
+  urlscan [domain:ticto.app | novas]: 0 varreduras (total ~0), 0 domínios novos
+  urlscan [domain:perfectpay.com.br | novas]: 0 varreduras (total ~0), 0 domínios novos
+  urlscan [domain:redtrack.io | novas]: 0 varreduras (total ~0), 0 domínios novos
+  urlscan [domain:t.hyros.com | novas]: 33 varreduras (total ~33), 6 domínios novos
+  urlscan [domain:clickmagick.com | novas]: 0 varreduras (total ~0), 0 domínios novos
+  urlscan [domain:samcart.com | novas]: 1 varreduras (total ~1), 1 domínios novos
+  urlscan [domain:thrivecart.com | novas]: 0 varreduras (total ~0), 0 domínios novos
+  urlscan [domain:digistore24.com | novas]: 13 varreduras (total ~13), 3 domínios novos
+  urlscan [filename:"tfa.js" | novas]: 597 varreduras (total ~597), 51 domínios novos
+  urlscan [domain:amplify.outbrain.com | novas]: 173 varreduras (total ~173), 12 domínios novos
+  urlscan [domain:mgid.com | novas]: 371 varreduras (total ~371), 40 domínios novos
+  total: 254 domínios novos pelo urlscan
+
+== Descoberta: crt.sh (certificados recentes por palavra) (14:41:45)
+  crt.sh [metodo]: 0 domínios novos
+  crt.sh [protocolo]: 0 domínios novos
+  crt.sh [segredo]: 0 domínios novos
+  crt.sh [emagrec]: 0 domínios novos
+  crt.sh [renda-extra]: 0 domínios novos
+
+== Análise das páginas (14:42:16)
+  analisando 32672 domínios (48 em paralelo)...
+  25/32672 analisados, 19 com VSL/checkout
+  50/32672 analisados, 37 com VSL/checkout
+  75/32672 analisados, 57 com VSL/checkout
+  100/32672 analisados, 76 com VSL/checkout
+  125/32672 analisados, 94 com VSL/checkout
+  150/32672 analisados, 109 com VSL/checkout
+  175/32672 analisados, 121 com VSL/checkout
+  200/32672 analisados, 139 com VSL/checkout
+  225/32672 analisados, 161 com VSL/checkout
+  250/32672 analisados, 183 com VSL/checkout
+  275/32672 analisados, 207 com VSL/checkout
+  300/32672 analisados, 220 com VSL/checkout
+  325/32672 analisados, 230 com VSL/checkout
+  350/32672 analisados, 234 com VSL/checkout
+  375/32672 analisados, 241 com VSL/checkout
+  400/32672 analisados, 247 com VSL/checkout
+  425/32672 analisados, 251 com VSL/checkout
+  450/32672 analisados, 254 com VSL/checkout
+  475/32672 analisados, 256 com VSL/checkout
+  500/32672 analisados, 262 com VSL/checkout
+  525/32672 analisados, 265 com VSL/checkout
+  550/32672 analisados, 268 com VSL/checkout
+  575/32672 analisados, 268 com VSL/checkout
+  600/32672 analisados, 271 com VSL/checkout
+  625/32672 analisados, 274 com VSL/checkout
+  650/32672 analisados, 276 com VSL/checkout
+  675/32672 analisados, 280 com VSL/checkout
+  700/32672 analisados, 282 com VSL/checkout
+  725/32672 analisados, 286 com VSL/checkout
+  750/32672 analisados, 289 com VSL/checkout
+  775/32672 analisados, 298 com VSL/checkout
+  800/32672 analisados, 299 com VSL/checkout
+  825/32672 analisados, 305 com VSL/checkout
+  850/32672 analisados, 308 com VSL/checkout
+  875/32672 analisados, 313 com VSL/checkout
+  900/32672 analisados, 318 com VSL/checkout
+  925/32672 analisados, 322 com VSL/checkout
+  950/32672 analisados, 322 com VSL/checkout
+  975/32672 analisados, 324 com VSL/checkout
+  1000/32672 analisados, 326 com VSL/checkout
+  1025/32672 analisados, 331 com VSL/checkout
+  1050/32672 analisados, 336 com VSL/checkout
+  1075/32672 analisados, 337 com VSL/checkout
+  1100/32672 analisados, 339 com VSL/checkout
+  1125/32672 analisados, 343 com VSL/checkout
+  1150/32672 analisados, 344 com VSL/checkout
+  1175/32672 analisados, 346 com VSL/checkout
+  1200/32672 analisados, 350 com VSL/checkout
+  1225/32672 analisados, 351 com VSL/checkout
+  1250/32672 analisados, 352 com VSL/checkout
+  1275/32672 analisados, 355 com VSL/checkout
+  1300/32672 analisados, 357 com VSL/checkout
+  1325/32672 analisados, 359 com VSL/checkout
+  1350/32672 analisados, 361 com VSL/checkout
+  1375/32672 analisados, 366 com VSL/checkout
+  1400/32672 analisados, 368 com VSL/checkout
+  1425/32672 analisados, 371 com VSL/checkout
+  1450/32672 analisados, 377 com VSL/checkout
+  1475/32672 analisados, 378 com VSL/checkout
+  1500/32672 analisados, 382 com VSL/checkout
+  1525/32672 analisados, 386 com VSL/checkout
+  1550/32672 analisados, 389 com VSL/checkout
+  1575/32672 analisados, 391 com VSL/checkout
+  1600/32672 analisados, 393 com VSL/checkout
+  1625/32672 analisados, 395 com VSL/checkout
+  1650/32672 analisados, 397 com VSL/checkout
+  1675/32672 analisados, 400 com VSL/checkout
+  1700/32672 analisados, 403 com VSL/checkout
+  1725/32672 analisados, 405 com VSL/checkout
+  1750/32672 analisados, 411 com VSL/checkout
+  1775/32672 analisados, 413 com VSL/checkout
+  1800/32672 analisados, 416 com VSL/checkout
+  1825/32672 analisados, 417 com VSL/checkout
+  1850/32672 analisados, 418 com VSL/checkout
+  1875/32672 analisados, 419 com VSL/checkout
+  1900/32672 analisados, 425 com VSL/checkout
+  1925/32672 analisados, 428 com VSL/checkout
+  1950/32672 analisados, 434 com VSL/checkout
+  1975/32672 analisados, 438 com VSL/checkout
+  2000/32672 analisados, 441 com VSL/checkout
+  2025/32672 analisados, 442 com VSL/checkout
+  2050/32672 analisados, 444 com VSL/checkout
+  2075/32672 analisados, 446 com VSL/checkout
+  2100/32672 analisados, 447 com VSL/checkout
+  2125/32672 analisados, 450 com VSL/checkout
+  2150/32672 analisados, 452 com VSL/checkout
+  2175/32672 analisados, 455 com VSL/checkout
+  2200/32672 analisados, 459 com VSL/checkout
+  2225/32672 analisados, 463 com VSL/checkout
+  2250/32672 analisados, 467 com VSL/checkout
+  2275/32672 analisados, 468 com VSL/checkout
+  2300/32672 analisados, 471 com VSL/checkout
+  2325/32672 analisados, 476 com VSL/checkout
+  2350/32672 analisados, 479 com VSL/checkout
+  2375/32672 analisados, 480 com VSL/checkout
+  2400/32672 analisados, 484 com VSL/checkout
+  2425/32672 analisados, 487 com VSL/checkout
+  2450/32672 analisados, 492 com VSL/checkout
+  2475/32672 analisados, 494 com VSL/checkout
+  2500/32672 analisados, 497 com VSL/checkout
+  2525/32672 analisados, 499 com VSL/checkout
+  2550/32672 analisados, 501 com VSL/checkout
+  2575/32672 analisados, 502 com VSL/checkout
+  2600/32672 analisados, 506 com VSL/checkout
+  2625/32672 analisados, 508 com VSL/checkout
+  2650/32672 analisados, 510 com VSL/checkout
+  2675/32672 analisados, 512 com VSL/checkout
+  2700/32672 analisados, 515 com VSL/checkout
+  2725/32672 analisados, 519 com VSL/checkout
+  2750/32672 analisados, 525 com VSL/checkout
+  2775/32672 analisados, 528 com VSL/checkout
+  2800/32672 analisados, 536 com VSL/checkout
+  2825/32672 analisados, 542 com VSL/checkout
+  2850/32672 analisados, 545 com VSL/checkout
+  2875/32672 analisados, 549 com VSL/checkout
+  2900/32672 analisados, 554 com VSL/checkout
+  2925/32672 analisados, 559 com VSL/checkout
+  2950/32672 analisados, 564 com VSL/checkout
+  2975/32672 analisados, 567 com VSL/checkout
+  3000/32672 analisados, 570 com VSL/checkout
+  3025/32672 analisados, 574 com VSL/checkout
+  3050/32672 analisados, 578 com VSL/checkout
+  3075/32672 analisados, 583 com VSL/checkout
+  3100/32672 analisados, 585 com VSL/checkout
+  3125/32672 analisados, 591 com VSL/checkout
+  3150/32672 analisados, 595 com VSL/checkout
+  3175/32672 analisados, 600 com VSL/checkout
+  3200/32672 analisados, 608 com VSL/checkout
+  3225/32672 analisados, 611 com VSL/checkout
+  3250/32672 analisados, 618 com VSL/checkout
+  3275/32672 analisados, 625 com VSL/checkout
+  3300/32672 analisados, 630 com VSL/checkout
+  3325/32672 analisados, 634 com VSL/checkout
+  3350/32672 analisados, 640 com VSL/checkout
+  3375/32672 analisados, 644 com VSL/checkout
+  3400/32672 analisados, 654 com VSL/checkout
+  3425/32672 analisados, 659 com VSL/checkout
+  3450/32672 analisados, 662 com VSL/checkout
+  3475/32672 analisados, 667 com VSL/checkout
+  3500/32672 analisados, 671 com VSL/checkout
+  3525/32672 analisados, 676 com VSL/checkout
+  3550/32672 analisados, 686 com VSL/checkout
+  3575/32672 analisados, 690 com VSL/checkout
+  3600/32672 analisados, 693 com VSL/checkout
+  3625/32672 analisados, 698 com VSL/checkout
+  3650/32672 analisados, 703 com VSL/checkout
+  3675/32672 analisados, 710 com VSL/checkout
+  3700/32672 analisados, 711 com VSL/checkout
+  3725/32672 analisados, 713 com VSL/checkout
+  3750/32672 analisados, 717 com VSL/checkout
+  3775/32672 analisados, 725 com VSL/checkout
+  3800/32672 analisados, 736 com VSL/checkout
+  3825/32672 analisados, 741 com VSL/checkout
+  3850/32672 analisados, 744 com VSL/checkout
+  3875/32672 analisados, 747 com VSL/checkout
+  3900/32672 analisados, 752 com VSL/checkout
+  3925/32672 analisados, 756 com VSL/checkout
+  3950/32672 analisados, 759 com VSL/checkout
+  3975/32672 analisados, 764 com VSL/checkout
+  4000/32672 analisados, 772 com VSL/checkout
+  4025/32672 analisados, 778 com VSL/checkout
+  4050/32672 analisados, 781 com VSL/checkout
+  4075/32672 analisados, 786 com VSL/checkout
+  4100/32672 analisados, 790 com VSL/checkout
+  4125/32672 analisados, 796 com VSL/checkout
+  4150/32672 analisados, 799 com VSL/checkout
+  4175/32672 analisados, 802 com VSL/checkout
+  4200/32672 analisados, 806 com VSL/checkout
+  4225/32672 analisados, 810 com VSL/checkout
+  4250/32672 analisados, 814 com VSL/checkout
+  4275/32672 analisados, 820 com VSL/checkout
+  4300/32672 analisados, 823 com VSL/checkout
+  4325/32672 analisados, 828 com VSL/checkout
+  4350/32672 analisados, 832 com VSL/checkout
+  4375/32672 analisados, 839 com VSL/checkout
+  4400/32672 analisados, 843 com VSL/checkout
+  4425/32672 analisados, 850 com VSL/checkout
+  4450/32672 analisados, 858 com VSL/checkout
+  4475/32672 analisados, 869 com VSL/checkout
+  4500/32672 analisados, 880 com VSL/checkout
+  4525/32672 analisados, 895 com VSL/checkout
+  4550/32672 analisados, 903 com VSL/checkout
+  4575/32672 analisados, 912 com VSL/checkout
+  4600/32672 analisados, 923 com VSL/checkout
+  4625/32672 analisados, 938 com VSL/checkout
+  4650/32672 analisados, 953 com VSL/checkout
+  4675/32672 analisados, 968 com VSL/checkout
+  4700/32672 analisados, 980 com VSL/checkout
+  4725/32672 analisados, 993 com VSL/checkout
+  4750/32672 analisados, 1008 com VSL/checkout
+  4775/32672 analisados, 1020 com VSL/checkout
+  4800/32672 analisados, 1033 com VSL/checkout
+  4825/32672 analisados, 1043 com VSL/checkout
+  4850/32672 analisados, 1050 com VSL/checkout
+  4875/32672 analisados, 1055 com VSL/checkout
+  4900/32672 analisados, 1061 com VSL/checkout
+  4925/32672 analisados, 1066 com VSL/checkout
+  4950/32672 analisados, 1070 com VSL/checkout
+  4975/32672 analisados, 1074 com VSL/checkout
+  5000/32672 analisados, 1080 com VSL/checkout
+  5025/32672 analisados, 1083 com VSL/checkout
+  5050/32672 analisados, 1089 com VSL/checkout
+  5075/32672 analisados, 1096 com VSL/checkout
+  5100/32672 analisados, 1099 com VSL/checkout
+  5125/32672 analisados, 1102 com VSL/checkout
+  5150/32672 analisados, 1107 com VSL/checkout
+  5175/32672 analisados, 1109 com VSL/checkout
+  5200/32672 analisados, 1113 com VSL/checkout
+  5225/32672 analisados, 1119 com VSL/checkout
+  5250/32672 analisados, 1122 com VSL/checkout
+  5275/32672 analisados, 1127 com VSL/checkout
+  5300/32672 analisados, 1134 com VSL/checkout
+  5325/32672 analisados, 1140 com VSL/checkout
+  5350/32672 analisados, 1144 com VSL/checkout
+  5375/32672 analisados, 1149 com VSL/checkout
+  5400/32672 analisados, 1153 com VSL/checkout
+  5425/32672 analisados, 1157 com VSL/checkout
+  5450/32672 analisados, 1162 com VSL/checkout
+  5475/32672 analisados, 1172 com VSL/checkout
+  5500/32672 analisados, 1184 com VSL/checkout
+  5525/32672 analisados, 1196 com VSL/checkout
+  5550/32672 analisados, 1211 com VSL/checkout
+  5575/32672 analisados, 1226 com VSL/checkout
+  5600/32672 analisados, 1244 com VSL/checkout
+  5625/32672 analisados, 1257 com VSL/checkout
+  5650/32672 analisados, 1274 com VSL/checkout
+  5675/32672 analisados, 1288 com VSL/checkout
+  5700/32672 analisados, 1299 com VSL/checkout
+  5725/32672 analisados, 1316 com VSL/checkout
+  5750/32672 analisados, 1330 com VSL/checkout
+  5775/32672 analisados, 1347 com VSL/checkout
+  5800/32672 analisados, 1359 com VSL/checkout
+  5825/32672 analisados, 1375 com VSL/checkout
+  5850/32672 analisados, 1391 com VSL/checkout
+  5875/32672 analisados, 1400 com VSL/checkout
+  5900/32672 analisados, 1411 com VSL/checkout
+  5925/32672 analisados, 1425 com VSL/checkout
+  5950/32672 analisados, 1435 com VSL/checkout
+  5975/32672 analisados, 1440 com VSL/checkout
+  6000/32672 analisados, 1449 com VSL/checkout
+  6025/32672 analisados, 1463 com VSL/checkout
+  6050/32672 analisados, 1477 com VSL/checkout
+  6075/32672 analisados, 1493 com VSL/checkout
+  6100/32672 analisados, 1509 com VSL/checkout
+  6125/32672 analisados, 1526 com VSL/checkout
+  6150/32672 analisados, 1542 com VSL/checkout
+  6175/32672 analisados, 1556 com VSL/checkout
+  6200/32672 analisados, 1568 com VSL/checkout
+  6225/32672 analisados, 1575 com VSL/checkout
+  6250/32672 analisados, 1583 com VSL/checkout
+  6275/32672 analisados, 1594 com VSL/checkout
+  6300/32672 analisados, 1604 com VSL/checkout
+  6325/32672 analisados, 1619 com VSL/checkout
+  6350/32672 analisados, 1641 com VSL/checkout
+  6375/32672 analisados, 1658 com VSL/checkout
+  6400/32672 analisados, 1675 com VSL/checkout
+  6425/32672 analisados, 1683 com VSL/checkout
+  6450/32672 analisados, 1688 com VSL/checkout
+  6475/32672 analisados, 1701 com VSL/checkout
+  6500/32672 analisados, 1720 com VSL/checkout
+  6525/32672 analisados, 1739 com VSL/checkout
+  6550/32672 analisados, 1750 com VSL/checkout
+  6575/32672 analisados, 1755 com VSL/checkout
+  6600/32672 analisados, 1762 com VSL/checkout
+  6625/32672 analisados, 1777 com VSL/checkout
+  6650/32672 analisados, 1793 com VSL/checkout
+  6675/32672 analisados, 1801 com VSL/checkout
+  6700/32672 analisados, 1808 com VSL/checkout
+  6725/32672 analisados, 1823 com VSL/checkout
+  6750/32672 analisados, 1840 com VSL/checkout
+  6775/32672 analisados, 1862 com VSL/checkout
+  6800/32672 analisados, 1882 com VSL/checkout
+  6825/32672 analisados, 1900 com VSL/checkout
+  6850/32672 analisados, 1918 com VSL/checkout
+  6875/32672 analisados, 1927 com VSL/checkout
+  6900/32672 analisados, 1941 com VSL/checkout
+  6925/32672 analisados, 1960 com VSL/checkout
+  6950/32672 analisados, 1972 com VSL/checkout
+  6975/32672 analisados, 1979 com VSL/checkout
+  7000/32672 analisados, 1982 com VSL/checkout
+  7025/32672 analisados, 1985 com VSL/checkout
+  7050/32672 analisados, 1987 com VSL/checkout
+  7075/32672 analisados, 1988 com VSL/checkout
+  7100/32672 analisados, 1990 com VSL/checkout
+  7125/32672 analisados, 1991 com VSL/checkout
+  7150/32672 analisados, 1993 com VSL/checkout
+  7175/32672 analisados, 1995 com VSL/checkout
+  7200/32672 analisados, 1997 com VSL/checkout
+  7225/32672 analisados, 1997 com VSL/checkout
+  7250/32672 analisados, 2000 com VSL/checkout
+  7275/32672 analisados, 2001 com VSL/checkout
+  7300/32672 analisados, 2001 com VSL/checkout
+  7325/32672 analisados, 2002 com VSL/checkout
+  7350/32672 analisados, 2003 com VSL/checkout
+  7375/32672 analisados, 2004 com VSL/checkout
+  7400/32672 analisados, 2004 com VSL/checkout
+  7425/32672 analisados, 2005 com VSL/checkout
+  7450/32672 analisados, 2008 com VSL/checkout
+  7475/32672 analisados, 2011 com VSL/checkout
+  concluído: 7499 analisados, 2015 com VSL/checkout (25173 ficaram para a próxima rodada)
+
+== Testemunha do urlscan: página real das ofertas com cloaking (15:12:23)
+  6606 ofertas com página real só vista pelo urlscan; lendo até 300
+  varreduras lidas: 300; com player/checkout na página real: 146
+
+== Enriquecimento: varreduras e idade (urlscan), certificados e irmãos (crt.sh) (15:27:32)
+  11834 ofertas; varreduras pendentes: 154, certificados pendentes: 11714
+  varreduras do urlscan: 154/154 domínios
+  tempo desta etapa esgotado; 11700 certificados ficam para a próxima
+  certificados: 14; domínios-irmãos novos via certificado: 0
+
+== Expansão em grafo (rodada 1/2) (15:29:29)
+  ip 145.223.124.60: +11 domínios
+  ip 145.223.124.70: +14 domínios
+  ip 145.223.124.194: +14 domínios
+  ip 216.172.172.58: +6 domínios
+  ip 147.79.79.253: +11 domínios
+  ip 69.6.249.129: +10 domínios
+  ip 147.79.72.181: +12 domínios
+  ip 147.79.72.155: +13 domínios
+  ip 145.223.124.198: +12 domínios
+  ip 147.79.72.110: +12 domínios
+  ip 85.31.60.200: +1 domínios
+  ip 145.223.124.253: +13 domínios
+  ip 147.79.72.151: +13 domínios
+  ip 52.222.136.69: +6 domínios
+  ip 147.79.72.213: +14 domínios
+  ip 88.223.87.10: +9 domínios
+  ip 147.79.79.135: +13 domínios
+  ip 147.79.72.47: +13 domínios
+  ip 169.58.19.192: +5 domínios
+  ip 147.79.72.25: +12 domínios
+  ip 147.79.79.115: +12 domínios
+  ip 147.79.79.167: +13 domínios
+  ip 88.223.87.115: +10 domínios
+  ip 147.79.79.92: +12 domínios
+  ip 147.79.72.140: +8 domínios
+  ip 145.223.124.208: +13 domínios
+  ip 145.223.124.168: +13 domínios
+  ip 147.79.72.197: +11 domínios
+  ip 147.79.72.159: +15 domínios
+  ip 147.79.79.186: +14 domínios
+  ip 145.223.124.210: +14 domínios
+  ip 145.223.124.19: +10 domínios
+  ip 147.79.72.9: +15 domínios
+  ip 88.223.87.114: +15 domínios
+  ip 147.79.72.11: +12 domínios
+  ip 147.79.72.15: +11 domínios
+  ip 192.185.209.81: +10 domínios
+  ip 147.79.72.36: +14 domínios
+  ip 185.225.133.159: +3 domínios
+  ip 195.35.60.143: +14 domínios
+  ip 187.77.63.82: +1 domínios
+  ip 67.43.13.26: +1 domínios
+  ip 195.35.41.52: +1 domínios
+  ip 195.35.60.253: +13 domínios
+  ip 212.1.212.65: +8 domínios
+  ip 212.1.212.13: +13 domínios
+  ip 89.116.115.8: +3 domínios
+  ip 212.1.212.110: +12 domínios
+  ip 191.96.144.162: +10 domínios
+  ip 18.160.18.40: +7 domínios
+  ip 18.160.18.58: +5 domínios
+  ip 85.13.163.129: +3 domínios
+  ip 187.1.138.19: +6 domínios
+  ip 2804:10:8010::138:19: +4 domínios
+  ip 46.202.183.241: +1 domínios
+  ip 77.37.127.210: +1 domínios
+  ip 162.241.203.211: +11 domínios
+  ip 85.13.145.197: +6 domínios
+  ip 192.0.66.53: +5 domínios
+  ip 91.108.99.37: +11 domínios
+  ip 191.96.144.62: +12 domínios
+  ip 191.96.144.69: +11 domínios
+  ip 147.79.72.174: +12 domínios
+  ip 192.185.211.114: +6 domínios
+  ip 145.223.124.105: +13 domínios
+  ip 147.79.72.78: +14 domínios
+  ip 147.79.72.28: +14 domínios
+  ip 184.94.213.211: +13 domínios
+  ip 191.101.104.96: +8 domínios
+  ip 198.71.190.90: +10 domínios
+  ip 145.223.124.15: +10 domínios
+  ip 185.211.7.129: +1 domínios
+  ip 99.84.141.37: +1 domínios
+  ip 99.84.141.93: +1 domínios
+  ip 85.13.138.108: +12 domínios
+  (sem chave do PublicWWW: expansão por GTM/pixel/produto desativada)
+  expansão: 713 domínios novos (400 IPs consultados)
+
+== Análise dos domínios novos (15:30:38)
+  analisando 25895 domínios (48 em paralelo)...
+  25/25895 analisados, 1 com VSL/checkout
+  50/25895 analisados, 1 com VSL/checkout
+  75/25895 analisados, 1 com VSL/checkout
+  100/25895 analisados, 5 com VSL/checkout
+  concluído: 107 analisados, 7 com VSL/checkout (25788 ficaram para a próxima rodada)
+
+== Expansão em grafo (rodada 2/2) (15:31:09)
+  tempo da rodada esgotado; o resto da expansão fica para amanhã
+  (sem chave do PublicWWW: expansão por GTM/pixel/produto desativada)
+  expansão: 0 domínios novos (0 IPs consultados)
+
+== Análise do que ficou na fila (irmãos de certificado, expansão) (15:31:10)
+  analisando 25789 domínios (48 em paralelo)...
+  concluído: 0 analisados, 0 com VSL/checkout (25789 ficaram para a próxima rodada)
+
+== Tráfego: ranking Tranco (15:31:11)
+  baixando lista Tranco (~10 MB)...
+  6360 domínios no top 1M (9540 pelo domínio raiz)
+  2 chaves de produto genéricas removidas
+
+== Grafo de operações (15:31:14)
+  grafo: 37864 domínios em 33702 grupos (1743 operações com 2+ domínios)
+
+== Score (15:31:15)
+  score: 11835 ofertas pontuadas (ads=não, histórico=sim)
+
+== Relatório (15:31:18)
+  relatório: 10779 ofertas -> /home/runner/work/test/test/saida/ranking.html
+
+Pronto. Abra /home/runner/work/test/test/saida/ranking.html
